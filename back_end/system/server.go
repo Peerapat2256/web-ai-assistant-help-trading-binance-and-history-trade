@@ -5,6 +5,7 @@ import (
 	"backend/utils"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -26,8 +27,14 @@ func StartServer() {
 	router := gin.Default()
 	_ = router.SetTrustedProxies(nil)
 
+	// ตั้งค่า CORS รองรับทั้ง Localhost และโดเมน Vercel
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000"},
+		AllowOriginFunc: func(origin string) bool {
+			return strings.HasPrefix(origin, "http://localhost") ||
+				strings.HasPrefix(origin, "http://127.0.0.1") ||
+				strings.HasSuffix(origin, ".vercel.app") ||
+				strings.Contains(origin, "onrender.com")
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -60,10 +67,15 @@ func StartServer() {
 	controller.NewsController(router)
 	controller.SheetController(router)
 
-	port := os.Getenv("SERVER_PORT")
+	// รองรับตัวแปร PORT ของ Render / Cloud และ fallback มา SERVER_PORT / 8080
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = os.Getenv("SERVER_PORT")
+	}
 	if port == "" {
 		port = "8080"
 	}
+
 	log.Printf("เซิร์ฟเวอร์ Backend พร้อมทำงานที่พอร์ต %s", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("ไม่สามารถเปิดเซิร์ฟเวอร์ได้: %v", err)
