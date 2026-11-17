@@ -182,6 +182,7 @@ type AiAnalysisResponse struct {
 	Symbol          string  `json:"symbol"`
 	Timeframe       string  `json:"timeframe"`
 	AnalysisType    string  `json:"analysis_type"`
+	PromptSummary   string  `json:"prompt_summary"`
 	AiResponse      string  `json:"ai_response"`
 	SignalDirection string  `json:"signal_direction"`
 	SentimentScore  float64 `json:"sentiment_score"`

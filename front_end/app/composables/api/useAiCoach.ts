@@ -43,10 +43,15 @@ export function useAiCoach() {
     return res.data?.data || [];
   };
 
+  const deleteAiLog = async (id: number) => {
+    await $api.delete(`/ai/logs/${id}`);
+  };
+
   return {
     fetchMarketKlines,
     analyzeChart,
     reviewJournal,
     fetchAiLogs,
+    deleteAiLog,
   };
 }

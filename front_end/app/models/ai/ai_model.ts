@@ -29,6 +29,7 @@ export interface AiAnalysisResponse {
   symbol: string;
   timeframe: string;
   analysis_type: string;
+  prompt_summary?: string;
   ai_response: string;
   signal_direction: string;
   sentiment_score: number;

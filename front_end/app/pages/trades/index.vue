@@ -46,6 +46,9 @@
           <Search class="w-4 h-4" />
           ค้นหา
         </button>
+        <span class="badge badge-primary badge-outline text-xs ml-auto hidden md:inline-flex">
+          ทิป: แคปจอแล้วกด Ctrl + V บนหน้านี้เพื่อสแกนได้ทันที
+        </span>
       </div>
     </div>
 
@@ -141,7 +144,12 @@
       </div>
     </div>
 
-    <TradeScreenshotUploadModal :open="openScanModal" @close="openScanModal = false" @saved="loadTrades" />
+    <TradeScreenshotUploadModal
+      :open="openScanModal"
+      :initial-file="pastedScreenshot"
+      @close="closeScanModal"
+      @saved="loadTrades"
+    />
     <TradeFormModal
       :open="openFormModal"
       :edit-trade="selectedTrade"
@@ -170,6 +178,12 @@ const filterSide = ref("ALL");
 const openScanModal = ref(false);
 const openFormModal = ref(false);
 const selectedTrade = ref<TradeHistory | null>(null);
+const pastedScreenshot = ref<File | null>(null);
+
+const closeScanModal = () => {
+  openScanModal.value = false;
+  pastedScreenshot.value = null;
+};
 
 const loadTrades = async () => {
   await fetchTrades(filterSymbol.value, filterSide.value);
@@ -217,7 +231,29 @@ const formatTime = (iso: string) => {
   });
 };
 
+const onPagePaste = (e: ClipboardEvent) => {
+  if (openScanModal.value || openFormModal.value) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) {
+        e.preventDefault();
+        pastedScreenshot.value = file;
+        openScanModal.value = true;
+        break;
+      }
+    }
+  }
+};
+
 onMounted(() => {
   loadTrades();
+  window.addEventListener("paste", onPagePaste);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("paste", onPagePaste);
 });
 </script>

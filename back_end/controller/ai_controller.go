@@ -6,6 +6,7 @@ import (
 	"context"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,7 @@ func AiController(router *gin.Engine) {
 		ai.POST("/analyze-chart", analyzeChart)
 		ai.POST("/review-journal", reviewJournal)
 		ai.GET("/logs", listAiLogs)
+		ai.DELETE("/logs/:id", deleteAiLog)
 	}
 	router.GET("/market/klines", getMarketKlines)
 }
@@ -112,4 +114,21 @@ func listAiLogs(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": logs})
+}
+
+func deleteAiLog(c *gin.Context) {
+	memberID, ok := getMemberID(c)
+	if !ok {
+		return
+	}
+	idInt, err := strconv.Atoi(c.Param("id"))
+	if err != nil || idInt <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "รหัสรายการไม่ถูกต้อง"})
+		return
+	}
+	if err := newAiCoachService().DeleteLog(context.Background(), memberID, int32(idInt)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "ลบประวัติการวิเคราะห์สำเร็จ"})
 }

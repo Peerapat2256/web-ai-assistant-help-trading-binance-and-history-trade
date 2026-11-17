@@ -6,6 +6,7 @@ import (
 	"backend/utils"
 	"context"
 	"mime/multipart"
+	"strings"
 )
 
 type AiCoachService interface {
@@ -13,11 +14,12 @@ type AiCoachService interface {
 	AnalyzeChart(ctx context.Context, memberID int32, symbol, timeframe, question string, teachMode bool, fh *multipart.FileHeader) (*model.AiAnalysisResponse, error)
 	ReviewJournal(ctx context.Context, memberID int32) (*model.AiAnalysisResponse, error)
 	ListLogs(ctx context.Context, memberID int32) ([]model.AiAnalysisResponse, error)
+	DeleteLog(ctx context.Context, memberID int32, id int32) error
 }
 
 type aiCoachServiceImpl struct {
-	aiRepo  repository.AiLogRepository
-	dashSvc DashboardService
+	aiRepo    repository.AiLogRepository
+	dashSvc   DashboardService
 	tradeRepo repository.TradeRepository
 }
 
@@ -26,6 +28,20 @@ func NewAiCoachService(aiRepo repository.AiLogRepository, dashSvc DashboardServi
 		aiRepo:    aiRepo,
 		dashSvc:   dashSvc,
 		tradeRepo: tradeRepo,
+	}
+}
+
+func toAiAnalysisResponse(entry *model.AiAnalysisLog) model.AiAnalysisResponse {
+	return model.AiAnalysisResponse{
+		ID:              entry.ID,
+		Symbol:          entry.Symbol,
+		Timeframe:       entry.Timeframe,
+		AnalysisType:    entry.AnalysisType,
+		PromptSummary:   entry.PromptSummary,
+		AiResponse:      entry.AiResponse,
+		SignalDirection: entry.SignalDirection,
+		SentimentScore:  entry.SentimentScore,
+		CreatedAt:       entry.CreatedAt.Format("02/01/2006 15:04"),
 	}
 }
 
@@ -47,28 +63,25 @@ func (s *aiCoachServiceImpl) AnalyzeChart(ctx context.Context, memberID int32, s
 		return nil, err
 	}
 
+	summary := strings.TrimSpace(question)
+	if summary == "" {
+		summary = "วิเคราะห์แนวโน้มและแผนการเทรด"
+	}
+
 	entry := &model.AiAnalysisLog{
 		MemberID:        memberID,
 		Symbol:          normSym,
 		Timeframe:       normTF,
 		AnalysisType:    "Chart",
-		PromptSummary:   question,
+		PromptSummary:   summary,
 		AiResponse:      aiText,
 		SignalDirection: signal,
 		SentimentScore:  score,
 	}
 	_ = s.aiRepo.Create(ctx, entry)
 
-	return &model.AiAnalysisResponse{
-		ID:              entry.ID,
-		Symbol:          entry.Symbol,
-		Timeframe:       entry.Timeframe,
-		AnalysisType:    entry.AnalysisType,
-		AiResponse:      entry.AiResponse,
-		SignalDirection: entry.SignalDirection,
-		SentimentScore:  entry.SentimentScore,
-		CreatedAt:       entry.CreatedAt.Format("02/01/2006 15:04"),
-	}, nil
+	res := toAiAnalysisResponse(entry)
+	return &res, nil
 }
 
 func (s *aiCoachServiceImpl) ReviewJournal(ctx context.Context, memberID int32) (*model.AiAnalysisResponse, error) {
@@ -98,35 +111,22 @@ func (s *aiCoachServiceImpl) ReviewJournal(ctx context.Context, memberID int32) 
 	}
 	_ = s.aiRepo.Create(ctx, entry)
 
-	return &model.AiAnalysisResponse{
-		ID:              entry.ID,
-		Symbol:          entry.Symbol,
-		Timeframe:       entry.Timeframe,
-		AnalysisType:    entry.AnalysisType,
-		AiResponse:      entry.AiResponse,
-		SignalDirection: entry.SignalDirection,
-		SentimentScore:  entry.SentimentScore,
-		CreatedAt:       entry.CreatedAt.Format("02/01/2006 15:04"),
-	}, nil
+	res := toAiAnalysisResponse(entry)
+	return &res, nil
 }
 
 func (s *aiCoachServiceImpl) ListLogs(ctx context.Context, memberID int32) ([]model.AiAnalysisResponse, error) {
-	logs, err := s.aiRepo.ListByMember(ctx, memberID, 15)
+	logs, err := s.aiRepo.ListByMember(ctx, memberID, 30)
 	if err != nil {
 		return nil, err
 	}
 	res := make([]model.AiAnalysisResponse, 0, len(logs))
-	for _, l := range logs {
-		res = append(res, model.AiAnalysisResponse{
-			ID:              l.ID,
-			Symbol:          l.Symbol,
-			Timeframe:       l.Timeframe,
-			AnalysisType:    l.AnalysisType,
-			AiResponse:      l.AiResponse,
-			SignalDirection: l.SignalDirection,
-			SentimentScore:  l.SentimentScore,
-			CreatedAt:       l.CreatedAt.Format("02/01/2006 15:04"),
-		})
+	for i := range logs {
+		res = append(res, toAiAnalysisResponse(&logs[i]))
 	}
 	return res, nil
+}
+
+func (s *aiCoachServiceImpl) DeleteLog(ctx context.Context, memberID int32, id int32) error {
+	return s.aiRepo.Delete(ctx, id, memberID)
 }

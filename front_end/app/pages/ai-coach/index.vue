@@ -90,9 +90,7 @@
                 </div>
               </div>
 
-              <div class="h-60">
-                <Line :data="priceChartData" :options="priceChartOptions" />
-              </div>
+              <AiCandlestickChart :klines="market.klines" :symbol="symbol" />
             </div>
           </div>
         </div>
@@ -143,10 +141,39 @@
           <div class="card-body p-5 space-y-4">
             <h3 class="font-bold text-base">ตั้งค่าคำถามให้ AI วิเคราะห์</h3>
 
-            <label class="form-control">
-              <span class="label-text text-xs mb-1">แนบรูปกราฟเพิ่ม (ไม่บังคับ)</span>
-              <input type="file" accept="image/*" class="file-input file-input-bordered file-input-sm w-full" @change="onChartFileChange" />
-            </label>
+            <div class="form-control">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="label-text text-xs">แนบรูปกราฟเพิ่ม (ไม่บังคับ)</span>
+                <span class="badge badge-xs badge-primary badge-outline">รองรับ Ctrl + V วางรูป</span>
+              </div>
+
+              <div v-if="chartPreviewUrl" class="relative rounded-xl overflow-hidden border border-primary/40 bg-base-200/70 p-2">
+                <img :src="chartPreviewUrl" alt="ภาพกราฟที่แนบ" class="w-full max-h-44 object-contain rounded-lg" />
+                <div class="flex items-center justify-between mt-2 px-1 text-[11px]">
+                  <span class="opacity-70 truncate max-w-[180px]">{{ chartFile?.name || 'ภาพจาก Clipboard' }}</span>
+                  <button type="button" class="btn btn-xs btn-error btn-outline gap-1" @click="clearChartFile">
+                    <X class="w-3 h-3" />
+                    ลบรูป
+                  </button>
+                </div>
+              </div>
+
+              <label
+                v-else
+                @dragover.prevent="isDragging = true"
+                @dragleave.prevent="isDragging = false"
+                @drop.prevent="onDropChartFile"
+                :class="[
+                  'flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-4 cursor-pointer transition-all text-center',
+                  isDragging ? 'border-primary bg-primary/10 scale-[1.01]' : 'border-base-300 hover:border-primary/70 bg-base-200/40',
+                ]"
+              >
+                <ImagePlus class="w-6 h-6 text-primary mb-1.5" />
+                <span class="text-xs font-medium">กด Ctrl + V วางรูปที่แคปจอได้เลย</span>
+                <span class="text-[11px] opacity-60 mt-0.5">หรือคลิกเลือกไฟล์ / ลากรูปมาวางที่นี่</span>
+                <input ref="chartInputRef" type="file" accept="image/*" class="hidden" @change="onChartFileChange" />
+              </label>
+            </div>
 
             <label class="form-control">
               <span class="label-text text-xs mb-1">สิ่งที่อยากให้ AI ช่วยดู</span>
@@ -201,25 +228,91 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="card agy-card agy-fade-up stagger-3 bg-base-100/90 border border-base-300 shadow-sm">
-        <div class="card-body p-5">
-          <h3 class="font-bold text-base mb-3">ประวัติการวิเคราะห์ล่าสุด</h3>
-          <div v-if="logsLoading" class="space-y-2">
-            <div v-for="n in 3" :key="n" class="skeleton h-14 w-full rounded-lg"></div>
+    <div class="card agy-card agy-fade-up stagger-4 bg-base-100/90 border border-base-300 shadow-sm overflow-hidden">
+      <div class="card-body p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h3 class="font-bold text-base">ตารางประวัติการวิเคราะห์ AI ทั้งหมด</h3>
+            <p class="text-xs opacity-60">บันทึกเก็บไว้ในฐานข้อมูลอัตโนมัติ รีเฟรชหน้าไม่หาย และสามารถกดดูซ้ำหรือลบออกได้</p>
           </div>
-          <div v-else-if="logs.length === 0" class="text-xs opacity-60 text-center py-4">
-            ยังไม่มีประวัติการวิเคราะห์
-          </div>
-          <div v-else class="space-y-3">
-            <div v-for="l in logs" :key="l.id" class="p-3.5 rounded-xl bg-base-200/50 border border-base-300">
-              <div class="flex justify-between items-center text-xs mb-1.5">
-                <span class="font-bold text-primary">{{ l.symbol }} ({{ l.analysis_type }})</span>
-                <span class="opacity-60">{{ l.created_at }}</span>
-              </div>
-              <p class="text-xs whitespace-pre-wrap line-clamp-4">{{ l.ai_response }}</p>
-            </div>
-          </div>
+          <span class="badge badge-outline badge-sm">{{ logs.length }} รายการ</span>
+        </div>
+
+        <div v-if="logsLoading" class="space-y-2">
+          <div v-for="n in 4" :key="n" class="skeleton h-12 w-full rounded-lg"></div>
+        </div>
+
+        <div v-else-if="logs.length === 0" class="text-xs opacity-60 text-center py-8">
+          ยังไม่มีประวัติการวิเคราะห์ AI
+        </div>
+
+        <div v-else class="overflow-x-auto">
+          <table class="table table-sm w-full">
+            <thead>
+              <tr class="bg-base-200/70">
+                <th>วัน-เวลา</th>
+                <th>คู่เหรียญ / TF</th>
+                <th>ประเภท</th>
+                <th>คำถาม / หัวข้อ</th>
+                <th>มุมมองสัญญาณ</th>
+                <th class="text-right">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="l in logs"
+                :key="l.id"
+                :class="[
+                  'hover',
+                  (chartResult?.id === l.id || journalResult?.id === l.id) ? 'bg-primary/5' : '',
+                ]"
+              >
+                <td class="text-xs opacity-75 whitespace-nowrap">{{ l.created_at }}</td>
+                <td class="font-bold text-xs whitespace-nowrap">
+                  {{ l.symbol }} <span class="opacity-60 font-normal">({{ l.timeframe }})</span>
+                </td>
+                <td>
+                  <span :class="['badge badge-xs', l.analysis_type === 'Chart' ? 'badge-primary badge-outline' : 'badge-info badge-outline']">
+                    {{ l.analysis_type === 'Chart' ? 'วิเคราะห์กราฟ' : 'วิเคราะห์พอร์ต' }}
+                  </span>
+                </td>
+                <td class="text-xs max-w-[240px] truncate">{{ l.prompt_summary || '-' }}</td>
+                <td>
+                  <span
+                    :class="[
+                      'badge badge-xs font-semibold',
+                      l.signal_direction === 'BULLISH'
+                        ? 'badge-success'
+                        : l.signal_direction === 'BEARISH'
+                        ? 'badge-error'
+                        : 'badge-ghost',
+                    ]"
+                  >
+                    {{
+                      l.signal_direction === 'BULLISH'
+                        ? 'ขาขึ้น'
+                        : l.signal_direction === 'BEARISH'
+                        ? 'ขาลง'
+                        : 'เป็นกลาง'
+                    }}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <div class="flex justify-end gap-1">
+                    <button type="button" class="btn btn-ghost btn-xs gap-1" @click="viewLog(l)" title="ดูผลวิเคราะห์">
+                      <Eye class="w-3.5 h-3.5 text-primary" />
+                      ดูผล
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-xs text-error" @click="removeLog(l)" title="ลบประวัติ">
+                      <Trash2 class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -227,26 +320,14 @@
 </template>
 
 <script setup lang="ts">
-import { Bot, Sparkles, RefreshCw } from "lucide-vue-next";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Legend,
-} from "chart.js";
-import { Line } from "vue-chartjs";
+import { Bot, Sparkles, RefreshCw, ImagePlus, X, Eye, Trash2 } from "lucide-vue-next";
 import Swal from "sweetalert2";
 import { useAiCoach } from "~/composables/api/useAiCoach";
 import type { AiAnalysisResponse, MarketDataSummary } from "~/models/ai/ai_model";
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
-
 definePageMeta({ middleware: "auth" });
 
-const { fetchMarketKlines, analyzeChart, reviewJournal, fetchAiLogs } = useAiCoach();
+const { fetchMarketKlines, analyzeChart, reviewJournal, fetchAiLogs, deleteAiLog } = useAiCoach();
 
 const activeTab = ref<"chart" | "journal">("chart");
 const symbol = ref("BTCUSDT");
@@ -255,6 +336,9 @@ const timeframes = ["15m", "1h", "4h", "1d"];
 const question = ref("");
 const teachMode = ref(true);
 const chartFile = ref<File | null>(null);
+const chartPreviewUrl = ref<string | null>(null);
+const chartInputRef = ref<HTMLInputElement | null>(null);
+const isDragging = ref(false);
 
 const marketLoading = ref(true);
 const analyzing = ref(false);
@@ -282,9 +366,51 @@ const selectTimeframe = (tf: string) => {
   loadMarket();
 };
 
+const setChartImage = (file: File | null) => {
+  if (chartPreviewUrl.value) {
+    URL.revokeObjectURL(chartPreviewUrl.value);
+    chartPreviewUrl.value = null;
+  }
+  chartFile.value = file;
+  if (file) {
+    chartPreviewUrl.value = URL.createObjectURL(file);
+  }
+};
+
+const clearChartFile = () => {
+  setChartImage(null);
+  if (chartInputRef.value) {
+    chartInputRef.value.value = "";
+  }
+};
+
 const onChartFileChange = (e: Event) => {
   const input = e.target as HTMLInputElement;
-  chartFile.value = input.files?.[0] || null;
+  setChartImage(input.files?.[0] || null);
+};
+
+const onDropChartFile = (e: DragEvent) => {
+  isDragging.value = false;
+  const file = e.dataTransfer?.files?.[0];
+  if (file && file.type.startsWith("image/")) {
+    setChartImage(file);
+  }
+};
+
+const onWindowPaste = (e: ClipboardEvent) => {
+  if (activeTab.value !== "chart") return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) {
+        e.preventDefault();
+        setChartImage(file);
+        break;
+      }
+    }
+  }
 };
 
 const runChartAnalysis = async () => {
@@ -315,40 +441,65 @@ const loadLogs = async () => {
   logsLoading.value = true;
   try {
     logs.value = await fetchAiLogs();
+    if (!chartResult.value) {
+      chartResult.value = logs.value.find((l) => l.analysis_type === "Chart") || null;
+    }
+    if (!journalResult.value) {
+      journalResult.value = logs.value.find((l) => l.analysis_type === "TradeJournalReview") || null;
+    }
   } finally {
     logsLoading.value = false;
   }
 };
 
-const priceChartData = computed(() => {
-  const klines = market.value?.klines || [];
-  return {
-    labels: klines.map((k) => k.time_str),
-    datasets: [
-      {
-        label: `ราคาปิด ${symbol.value}`,
-        data: klines.map((k) => k.close),
-        borderColor: "#0ECB81",
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.2,
-      },
-    ],
-  };
-});
+const viewLog = (l: AiAnalysisResponse) => {
+  if (l.analysis_type === "TradeJournalReview") {
+    activeTab.value = "journal";
+    journalResult.value = l;
+  } else {
+    activeTab.value = "chart";
+    chartResult.value = l;
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
 
-const priceChartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
-  scales: {
-    x: { grid: { display: false }, ticks: { maxTicksLimit: 8, color: "#848E9C", font: { size: 10 } } },
-    y: { grid: { color: "rgba(132, 142, 156, 0.12)" }, ticks: { color: "#848E9C", font: { size: 10 } } },
-  },
+const removeLog = async (l: AiAnalysisResponse) => {
+  const confirm = await Swal.fire({
+    title: "ลบประวัติการวิเคราะห์?",
+    text: `ต้องการลบผลการวิเคราะห์ ${l.symbol} (${l.created_at}) ออกจากระบบใช่หรือไม่?`,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonText: "ใช่, ลบเลย",
+    cancelButtonText: "ยกเลิก",
+    confirmButtonColor: "#F6465D",
+  });
+  if (!confirm.isConfirmed) return;
+
+  try {
+    await deleteAiLog(l.id);
+    logs.value = logs.value.filter((item) => item.id !== l.id);
+    if (chartResult.value?.id === l.id) {
+      chartResult.value = logs.value.find((item) => item.analysis_type === "Chart") || null;
+    }
+    if (journalResult.value?.id === l.id) {
+      journalResult.value = logs.value.find((item) => item.analysis_type === "TradeJournalReview") || null;
+    }
+    Swal.fire({ icon: "success", title: "ลบเรียบร้อยแล้ว", timer: 1200, showConfirmButton: false });
+  } catch (err: any) {
+    Swal.fire("เกิดข้อผิดพลาด", err.response?.data?.message || "ลบไม่สำเร็จ", "error");
+  }
 };
 
 onMounted(() => {
   loadMarket();
   loadLogs();
+  window.addEventListener("paste", onWindowPaste);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("paste", onWindowPaste);
+  if (chartPreviewUrl.value) {
+    URL.revokeObjectURL(chartPreviewUrl.value);
+  }
 });
 </script>
