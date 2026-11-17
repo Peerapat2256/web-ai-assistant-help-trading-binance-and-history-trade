@@ -1,5 +1,5 @@
 <template>
-  <div class="card bg-base-100 border border-base-300 shadow-sm">
+  <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
     <div class="card-body p-5">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
@@ -45,7 +45,7 @@
             v-for="cell in calendarCells"
             :key="cell.date"
             :class="[
-              'h-16 rounded-lg p-1.5 flex flex-col justify-between border transition-colors',
+              'agy-calendar-cell h-16 rounded-lg p-1.5 flex flex-col justify-between border transition-colors',
               cell.data
                 ? cell.data.pnl >= 0
                   ? 'bg-success/15 border-success/40 text-success'

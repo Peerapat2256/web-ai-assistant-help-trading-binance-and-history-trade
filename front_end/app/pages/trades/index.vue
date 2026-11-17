@@ -1,11 +1,21 @@
 <template>
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="agy-fade-up stagger-1 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold">ประวัติการเทรด & สแกนรูปแคปจอ</h1>
-        <p class="text-sm opacity-60">บันทึกข้อมูลอัตโนมัติและซิงค์กับ Google Sheets ทันทีเมื่อเพิ่ม/แก้ไข/ลบ</p>
+        <p class="text-sm opacity-60">บันทึกข้อมูลอัตโนมัติและซิงค์กับ Google Sheets ส่วนตัวของคุณทันทีเมื่อเพิ่ม/แก้ไข/ลบ</p>
       </div>
       <div class="flex flex-wrap gap-2">
+        <a
+          v-if="sheetState?.sheet_url"
+          :href="sheetState.sheet_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-outline btn-success btn-sm gap-1.5"
+        >
+          <ExternalLink class="w-4 h-4" />
+          เปิด Google Sheet
+        </a>
         <button class="btn btn-primary btn-sm gap-2" @click="openScanModal = true">
           <Sparkles class="w-4 h-4" />
           อัปโหลดรูปแคปจอ Binance
@@ -17,7 +27,7 @@
       </div>
     </div>
 
-    <div class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card agy-card agy-fade-up stagger-2 bg-base-100/90 border border-base-300 shadow-sm">
       <div class="card-body p-4 flex-row flex-wrap items-center gap-3">
         <input
           v-model="filterSymbol"
@@ -39,7 +49,7 @@
       </div>
     </div>
 
-    <div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden">
+    <div class="card agy-card agy-fade-up stagger-3 bg-base-100/90 border border-base-300 shadow-sm overflow-hidden">
       <div v-if="tradeStore.loading" class="p-6 space-y-3">
         <div v-for="n in 6" :key="n" class="skeleton h-12 w-full rounded-lg"></div>
       </div>
@@ -142,14 +152,16 @@
 </template>
 
 <script setup lang="ts">
-import { Sparkles, Plus, Search, Pencil, Trash2 } from "lucide-vue-next";
+import { Sparkles, Plus, Search, Pencil, Trash2, ExternalLink } from "lucide-vue-next";
 import Swal from "sweetalert2";
 import { useTrades } from "~/composables/api/useTrades";
 import { useTradeStore } from "~/stores/trade_store";
 import type { TradeHistory } from "~/models/trade/response/trade_res";
+import type { SheetConfig } from "~/models/sheet/sheet_model";
 
 definePageMeta({ middleware: "auth" });
 
+const sheetState = useState<SheetConfig | null>("user-sheet-config", () => null);
 const tradeStore = useTradeStore();
 const { fetchTrades, deleteTrade } = useTrades();
 

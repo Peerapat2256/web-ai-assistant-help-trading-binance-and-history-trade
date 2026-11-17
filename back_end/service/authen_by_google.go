@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
 	"google.golang.org/api/idtoken"
 )
@@ -73,25 +72,7 @@ func (s *authenByGoogleServiceImpl) LoginWithGoogle(credential string) (*model.A
 		member = newMember
 	}
 
-	if _, err := s.portfolioRepo.GetByMemberID(ctx, member.MemberID); err != nil {
-		_ = s.portfolioRepo.Upsert(ctx, &model.PortfolioSetting{
-			MemberID:         member.MemberID,
-			InitialBalance:   1000,
-			Currency:         "USDT",
-			MonthlyTargetPct: 10,
-			MaxDailyLossUSD:  50,
-		})
-	}
-	if defaultSheetID := strings.TrimSpace(os.Getenv("GOOGLE_SHEET_ID")); defaultSheetID != "" {
-		if _, err := s.sheetRepo.GetByMemberID(ctx, member.MemberID); err != nil {
-			_ = s.sheetRepo.Upsert(ctx, &model.SheetConfig{
-				MemberID:      member.MemberID,
-				SpreadsheetID: defaultSheetID,
-				SheetName:     "Trades",
-				IsAutoSync:    true,
-			})
-		}
-	}
+	ensureMemberDefaultConfigs(ctx, member.MemberID, s.portfolioRepo, s.sheetRepo)
 
 	userIDStr := strconv.Itoa(int(member.MemberID))
 	accessToken, refreshToken, err := utils.GenerateTokenPair(userIDStr)

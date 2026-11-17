@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="agy-fade-up stagger-1 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold">ข่าวคริปโต & วิเคราะห์ผลกระทบด้วย AI</h1>
         <p class="text-sm opacity-60">เลือกเหรียญที่สนใจเพื่อให้ระบบดึงข่าวล่าสุดมาสรุปภาษาไทยและประเมินทิศทางตลาด</p>
@@ -11,11 +11,11 @@
       </button>
     </div>
 
-    <div class="flex flex-wrap gap-2">
+    <div class="agy-fade-up stagger-2 flex flex-wrap gap-2">
       <button
         v-for="cat in categories"
         :key="cat.value"
-        :class="['btn btn-sm', selectedCategory === cat.value ? 'btn-primary' : 'btn-ghost bg-base-100 border border-base-300']"
+        :class="['btn btn-sm transition-all', selectedCategory === cat.value ? 'btn-primary' : 'btn-ghost bg-base-100/90 border border-base-300']"
         @click="selectCategory(cat.value)"
       >
         {{ cat.label }}
@@ -31,8 +31,8 @@
       </div>
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div v-for="(item, idx) in newsList" :key="idx" class="card bg-base-100 border border-base-300 shadow-sm">
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4 agy-fade-up stagger-3">
+      <div v-for="(item, idx) in newsList" :key="idx" class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-5 flex flex-col justify-between gap-3">
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-2 text-xs">

@@ -7,6 +7,7 @@
 body {
   font-family: 'DM Sans', 'Sarabun', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 ::-webkit-scrollbar {
@@ -22,4 +23,188 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(132, 142, 156, 0.6);
+}
+
+/* ── พื้นหลังตารางอวกาศบางๆ สไตล์ Antigravity ── */
+.agy-bg-grid {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(132, 142, 156, 0.14) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+/* ── แสงเรืองรองลอยตัวช้าๆ (Ambient Floating Orbs) ── */
+@keyframes agyFloatOrb {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(28px, -22px, 0) scale(1.06);
+  }
+  66% {
+    transform: translate3d(-18px, 16px, 0) scale(0.96);
+  }
+}
+
+.agy-orb {
+  position: fixed;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(85px);
+  z-index: 0;
+  will-change: transform;
+  animation: agyFloatOrb 16s ease-in-out infinite;
+}
+
+.agy-orb-gold {
+  width: 380px;
+  height: 380px;
+  top: -100px;
+  right: 8%;
+  background: radial-gradient(circle, rgba(252, 213, 53, 0.14), transparent 70%);
+}
+
+.agy-orb-emerald {
+  width: 420px;
+  height: 420px;
+  bottom: -120px;
+  left: 14%;
+  background: radial-gradient(circle, rgba(14, 203, 129, 0.12), transparent 70%);
+  animation-delay: -7s;
+}
+
+/* ── การ์ดกระจกและเอฟเฟกต์ลอยตัวไร้น้ำหนัก ── */
+.agy-card {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition:
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 320ms ease;
+}
+
+.agy-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(252, 213, 53, 0.32);
+  box-shadow:
+    0 14px 36px -12px rgba(0, 0, 0, 0.45),
+    0 0 24px -6px rgba(252, 213, 53, 0.14);
+}
+
+[data-theme="binancelight"] .agy-card:hover {
+  box-shadow:
+    0 14px 32px -12px rgba(16, 24, 40, 0.16),
+    0 0 20px -6px rgba(240, 185, 11, 0.22);
+}
+
+/* ── แสงขอบนุ่มๆ ให้ปุ่มหลัก ── */
+.btn-primary {
+  transition:
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 240ms ease,
+    filter 200ms ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px -6px rgba(252, 213, 53, 0.48);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* ── อนิเมชั่นเปลี่ยนหน้า (Route Page Transition) ── */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 280ms ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(14px);
+  filter: blur(4px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+  filter: blur(2px);
+}
+
+/* ── อนิเมชั่นเปิดตัวทีละส่วน (Staggered Entrance) ── */
+@keyframes agyFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.agy-fade-up {
+  opacity: 0;
+  animation: agyFadeUp 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.stagger-1 { animation-delay: 40ms; }
+.stagger-2 { animation-delay: 110ms; }
+.stagger-3 { animation-delay: 180ms; }
+.stagger-4 { animation-delay: 250ms; }
+.stagger-5 { animation-delay: 320ms; }
+
+/* ── เอฟเฟกต์วงแหวนและป้ายเรืองแสง ── */
+@keyframes agyPulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(14, 203, 129, 0.38);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(14, 203, 129, 0);
+  }
+}
+
+.agy-pulse-dot {
+  animation: agyPulseGlow 2.4s infinite;
+}
+
+@keyframes agyRingSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.agy-ring-orbit {
+  animation: agyRingSpin 28s linear infinite;
+}
+
+.agy-calendar-cell {
+  transition:
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+.agy-calendar-cell:hover {
+  transform: translateY(-3px) scale(1.03);
+  z-index: 10;
+  box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agy-orb,
+  .agy-fade-up,
+  .agy-pulse-dot,
+  .agy-ring-orbit,
+  .agy-card,
+  .agy-calendar-cell,
+  .page-enter-active,
+  .page-leave-active {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
 }

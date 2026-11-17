@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type LoginResponse struct {
 	ID          int    `json:"id"`
 	Fullname    string `json:"fullname"`
@@ -199,7 +201,18 @@ type NewsItem struct {
 }
 
 type SheetConfigRequest struct {
-	SpreadsheetID string `json:"spreadsheet_id" binding:"required"`
+	SpreadsheetID string `json:"spreadsheet_id"`
 	SheetName     string `json:"sheet_name"`
 	IsAutoSync    bool   `json:"is_auto_sync"`
+}
+
+type SheetConfigResponse struct {
+	ID            int32      `json:"id"`
+	MemberID      int32      `json:"member_id"`
+	SpreadsheetID string     `json:"spreadsheet_id"`
+	SheetName     string     `json:"sheet_name"`
+	IsAutoSync    bool       `json:"is_auto_sync"`
+	LastSyncedAt  *time.Time `json:"last_synced_at"`
+	BotEmail      string     `json:"bot_email"`
+	SheetURL      string     `json:"sheet_url"`
 }

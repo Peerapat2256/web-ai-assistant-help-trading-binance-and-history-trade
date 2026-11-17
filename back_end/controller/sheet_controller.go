@@ -4,9 +4,11 @@ import (
 	"backend/model/model"
 	"backend/repository"
 	"backend/service"
+	"backend/utils"
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,6 +27,23 @@ func newSheetSyncService() service.SheetSyncService {
 	return service.NewSheetSyncService(repository.NewSheetConfigRepository(), repository.NewTradeRepository())
 }
 
+func toSheetConfigResponse(cfg *model.SheetConfig) model.SheetConfigResponse {
+	sheetURL := ""
+	if cfg.SpreadsheetID != "" {
+		sheetURL = fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit", cfg.SpreadsheetID)
+	}
+	return model.SheetConfigResponse{
+		ID:            cfg.ID,
+		MemberID:      cfg.MemberID,
+		SpreadsheetID: cfg.SpreadsheetID,
+		SheetName:     cfg.SheetName,
+		IsAutoSync:    cfg.IsAutoSync,
+		LastSyncedAt:  cfg.LastSyncedAt,
+		BotEmail:      utils.GetServiceAccountEmail(),
+		SheetURL:      sheetURL,
+	}
+}
+
 func getSheetConfig(c *gin.Context) {
 	memberID, ok := getMemberID(c)
 	if !ok {
@@ -35,7 +54,7 @@ func getSheetConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "โหลดการตั้งค่า Google Sheets ไม่สำเร็จ"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": cfg})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": toSheetConfigResponse(cfg)})
 }
 
 func updateSheetConfig(c *gin.Context) {
@@ -45,7 +64,11 @@ func updateSheetConfig(c *gin.Context) {
 	}
 	var req model.SheetConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "กรุณาระบุ Spreadsheet ID หรือลิงก์ Google Sheet"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "ข้อมูลการตั้งค่า Google Sheets ไม่ถูกต้อง"})
+		return
+	}
+	if req.IsAutoSync && strings.TrimSpace(req.SpreadsheetID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "กรุณาระบุ Spreadsheet ID หรือลิงก์ Google Sheet ก่อนเปิดซิงค์อัตโนมัติ"})
 		return
 	}
 	cfg, err := newSheetSyncService().SaveConfig(context.Background(), memberID, req)
@@ -53,7 +76,7 @@ func updateSheetConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "บันทึกการตั้งค่า Google Sheets ไม่สำเร็จ"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "บันทึกการตั้งค่า Google Sheets สำเร็จ", "data": cfg})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "บันทึกการตั้งค่า Google Sheets สำเร็จ", "data": toSheetConfigResponse(cfg)})
 }
 
 func testSheetConnection(c *gin.Context) {

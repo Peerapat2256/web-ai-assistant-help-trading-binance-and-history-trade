@@ -3,6 +3,7 @@ package utils
 import (
 	"backend/model/model"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,23 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
+
+func GetServiceAccountEmail() string {
+	credFile := strings.TrimSpace(os.Getenv("GOOGLE_CREDENTIALS_FILE"))
+	if credFile == "" {
+		credFile = "./service-account.json"
+	}
+	data, err := os.ReadFile(credFile)
+	if err == nil {
+		var parsed struct {
+			ClientEmail string `json:"client_email"`
+		}
+		if json.Unmarshal(data, &parsed) == nil && parsed.ClientEmail != "" {
+			return parsed.ClientEmail
+		}
+	}
+	return "inance-sheet-bot@round-music-482118-b7.iam.gserviceaccount.com"
+}
 
 var sheetHeaders = []interface{}{
 	"รหัสอ้างอิง",

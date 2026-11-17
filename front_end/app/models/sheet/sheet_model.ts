@@ -14,4 +14,6 @@ export interface SheetConfig {
   sheet_name: string;
   is_auto_sync: boolean;
   last_synced_at: string | null;
+  bot_email?: string;
+  sheet_url?: string;
 }

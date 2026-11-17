@@ -1,8 +1,8 @@
 <template>
-  <div class="card w-full max-w-md bg-base-100 border border-base-300 shadow-xl">
+  <div class="card agy-card agy-fade-up stagger-1 w-full max-w-md bg-base-100/90 border border-base-300 shadow-2xl">
     <div class="card-body p-6 sm:p-8">
       <div class="flex items-center gap-3 mb-2">
-        <div class="w-10 h-10 rounded-xl bg-primary text-primary-content flex items-center justify-center font-extrabold text-xl">
+        <div class="w-10 h-10 rounded-xl bg-primary text-primary-content flex items-center justify-center font-extrabold text-xl shadow-[0_0_20px_rgba(252,213,53,0.4)]">
           B
         </div>
         <div>

@@ -5,6 +5,7 @@ import (
 	"backend/repository"
 	"backend/utils"
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -37,12 +38,22 @@ func (s *sheetSyncServiceImpl) GetConfig(ctx context.Context, memberID int32) (*
 	if err == nil && cfg != nil {
 		return cfg, nil
 	}
-	defaultID := strings.TrimSpace(os.Getenv("GOOGLE_SHEET_ID"))
+
+	// แยกชีตเริ่มต้น: ใช้ GOOGLE_SHEET_ID เฉพาะบัญชีแรก (เจ้าของระบบ) เพื่อไม่ให้ข้อมูลผู้ใช้ใหม่ไปปนกัน
+	defaultID := ""
+	sheetName := fmt.Sprintf("Trades_ID%d", memberID)
+	autoSync := false
+	if memberID == 1 {
+		defaultID = strings.TrimSpace(os.Getenv("GOOGLE_SHEET_ID"))
+		sheetName = "Trades"
+		autoSync = defaultID != ""
+	}
+
 	newCfg := &model.SheetConfig{
 		MemberID:      memberID,
 		SpreadsheetID: defaultID,
-		SheetName:     "Trades",
-		IsAutoSync:    defaultID != "",
+		SheetName:     sheetName,
+		IsAutoSync:    autoSync,
 	}
 	if defaultID != "" {
 		_ = s.sheetRepo.Upsert(ctx, newCfg)

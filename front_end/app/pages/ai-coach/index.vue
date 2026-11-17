@@ -1,13 +1,13 @@
 <template>
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="agy-fade-up stagger-1 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold">AI โค้ชสอนเทรด & วิเคราะห์กราฟ</h1>
         <p class="text-sm opacity-60">ดึงข้อมูลราคาและอินดิเคเตอร์สดจาก Binance หรืออัปโหลดรูปกราฟให้ AI ช่วยวิเคราะห์</p>
       </div>
     </div>
 
-    <div role="tablist" class="tabs tabs-boxed bg-base-100 border border-base-300 w-fit p-1">
+    <div role="tablist" class="agy-fade-up stagger-1 tabs tabs-boxed bg-base-100/90 border border-base-300 w-fit p-1">
       <button
         role="tab"
         :class="['tab text-sm', activeTab === 'chart' ? 'tab-active font-semibold' : '']"
@@ -25,8 +25,8 @@
     </div>
 
     <div v-if="activeTab === 'chart'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2 space-y-6">
-        <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="lg:col-span-2 space-y-6 agy-fade-up stagger-2">
+        <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
           <div class="card-body p-5 space-y-4">
             <div class="flex flex-wrap items-center gap-3">
               <select v-model="symbol" class="select select-bordered select-sm font-bold" @change="loadMarket">
@@ -105,7 +105,7 @@
           <div class="skeleton h-4 w-4/5"></div>
         </div>
 
-        <div v-else-if="chartResult" class="card bg-base-100 border border-base-300 shadow-sm">
+        <div v-else-if="chartResult" class="card agy-card agy-fade-up stagger-1 bg-base-100/90 border border-base-300 shadow-sm">
           <div class="card-body p-5 space-y-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <h3 class="font-bold text-base flex items-center gap-2">
@@ -138,8 +138,8 @@
         </div>
       </div>
 
-      <div class="space-y-6">
-        <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="space-y-6 agy-fade-up stagger-3">
+        <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
           <div class="card-body p-5 space-y-4">
             <h3 class="font-bold text-base">ตั้งค่าคำถามให้ AI วิเคราะห์</h3>
 
@@ -176,7 +176,7 @@
     </div>
 
     <div v-else class="space-y-6">
-      <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="card agy-card agy-fade-up stagger-2 bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-6 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -202,7 +202,7 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="card agy-card agy-fade-up stagger-3 bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-5">
           <h3 class="font-bold text-base mb-3">ประวัติการวิเคราะห์ล่าสุด</h3>
           <div v-if="logsLoading" class="space-y-2">

@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="agy-fade-up stagger-1 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold">แดชบอร์ดภาพรวมพอร์ต</h1>
         <p class="text-sm opacity-60">วิเคราะห์สถิติการเทรด Binance แบบเรียลไทม์</p>
@@ -13,7 +13,7 @@
       </div>
     </div>
 
-    <div v-if="summary?.is_daily_loss_alert" class="alert alert-error shadow-sm">
+    <div v-if="summary?.is_daily_loss_alert" class="agy-fade-up stagger-1 alert alert-error shadow-sm">
       <AlertTriangle class="w-5 h-5" />
       <div>
         <h3 class="font-bold text-sm">แจ้งเตือนวินัยการเทรด!</h3>
@@ -27,50 +27,71 @@
       <div v-for="n in 4" :key="n" class="skeleton h-28 rounded-2xl"></div>
     </div>
 
-    <div v-else-if="summary" class="stats stats-vertical lg:stats-horizontal w-full bg-base-100 border border-base-300 shadow-sm">
-      <div class="stat">
-        <div class="stat-title text-xs">ยอดพอร์ตปัจจุบัน</div>
-        <div class="stat-value text-2xl text-primary">
-          {{ summary.current_balance.toLocaleString() }} <span class="text-sm font-normal opacity-60">USDT</span>
+    <div v-else-if="summary" class="space-y-4 agy-fade-up stagger-2">
+      <div class="stats stats-vertical lg:stats-horizontal w-full agy-card bg-base-100/90 border border-base-300 shadow-sm">
+        <div class="stat">
+          <div class="stat-title text-xs">ยอดพอร์ตปัจจุบัน</div>
+          <div class="stat-value text-2xl text-primary">
+            {{ summary.current_balance.toLocaleString() }} <span class="text-sm font-normal opacity-60">USDT</span>
+          </div>
+          <div class="stat-desc">
+            ทุนเริ่มต้น {{ summary.initial_balance.toLocaleString() }} USDT
+          </div>
         </div>
-        <div class="stat-desc">
-          ทุนเริ่มต้น {{ summary.initial_balance.toLocaleString() }} USDT
+
+        <div class="stat">
+          <div class="stat-title text-xs">กำไร/ขาดทุนสุทธิ (Net PnL)</div>
+          <div :class="['stat-value text-2xl', summary.net_pnl >= 0 ? 'text-success' : 'text-error']">
+            {{ summary.net_pnl >= 0 ? '+' : '' }}{{ summary.net_pnl.toFixed(2) }}
+          </div>
+          <div :class="['stat-desc font-medium', summary.net_pnl_pct >= 0 ? 'text-success' : 'text-error']">
+            {{ summary.net_pnl_pct >= 0 ? '+' : '' }}{{ summary.net_pnl_pct.toFixed(2) }}% จากทุนตั้งต้น
+          </div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-title text-xs">อัตราชนะ (Win Rate)</div>
+          <div class="stat-value text-2xl">{{ summary.win_rate.toFixed(1) }}%</div>
+          <div class="stat-desc">
+            ชนะ {{ summary.win_trades }} / แพ้ {{ summary.loss_trades }} (รวม {{ summary.total_trades }} ไม้)
+          </div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-title text-xs">Profit Factor & R:R</div>
+          <div class="stat-value text-2xl">{{ summary.profit_factor.toFixed(2) }}</div>
+          <div class="stat-desc">
+            เฉลี่ย Risk:Reward = 1 : {{ summary.avg_risk_reward.toFixed(2) }}
+          </div>
         </div>
       </div>
 
-      <div class="stat">
-        <div class="stat-title text-xs">กำไร/ขาดทุนสุทธิ (Net PnL)</div>
-        <div :class="['stat-value text-2xl', summary.net_pnl >= 0 ? 'text-success' : 'text-error']">
-          {{ summary.net_pnl >= 0 ? '+' : '' }}{{ summary.net_pnl.toFixed(2) }}
-        </div>
-        <div :class="['stat-desc font-medium', summary.net_pnl_pct >= 0 ? 'text-success' : 'text-error']">
-          {{ summary.net_pnl_pct >= 0 ? '+' : '' }}{{ summary.net_pnl_pct.toFixed(2) }}% จากทุนตั้งต้น
-        </div>
-      </div>
-
-      <div class="stat">
-        <div class="stat-title text-xs">อัตราชนะ (Win Rate)</div>
-        <div class="stat-value text-2xl">{{ summary.win_rate.toFixed(1) }}%</div>
-        <div class="stat-desc">
-          ชนะ {{ summary.win_trades }} / แพ้ {{ summary.loss_trades }} (รวม {{ summary.total_trades }} ไม้)
-        </div>
-      </div>
-
-      <div class="stat">
-        <div class="stat-title text-xs">Profit Factor & R:R</div>
-        <div class="stat-value text-2xl">{{ summary.profit_factor.toFixed(2) }}</div>
-        <div class="stat-desc">
-          เฉลี่ย Risk:Reward = 1 : {{ summary.avg_risk_reward.toFixed(2) }}
+      <div v-if="summary.monthly_target_pct > 0" class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
+        <div class="card-body p-4 flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="space-y-0.5">
+            <div class="text-xs font-semibold flex items-center gap-2">
+              ความคืบหน้าเป้าหมายกำไร ({{ summary.monthly_target_pct }}%)
+              <span class="badge badge-xs badge-primary">{{ targetProgressPct.toFixed(1) }}% ของเป้าหมาย</span>
+            </div>
+            <div class="text-[11px] opacity-60">
+              ผลตอบแทนปัจจุบัน {{ summary.net_pnl_pct >= 0 ? '+' : '' }}{{ summary.net_pnl_pct.toFixed(2) }}% จากเป้าหมายที่ตั้งไว้ +{{ summary.monthly_target_pct }}%
+            </div>
+          </div>
+          <progress
+            class="progress progress-primary w-full sm:w-64 h-2.5"
+            :value="Math.max(0, Math.min(100, targetProgressPct))"
+            max="100"
+          ></progress>
         </div>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 agy-fade-up stagger-3">
       <div class="lg:col-span-2">
         <DashboardEquityChart :points="summary?.equity_curve || []" :loading="loading" />
       </div>
 
-      <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-5">
           <h3 class="font-bold text-base mb-3">สถิติสำคัญเพิ่มเติม</h3>
           <div v-if="loading" class="space-y-3">
@@ -107,7 +128,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 agy-fade-up stagger-4">
       <div class="lg:col-span-2">
         <DashboardPnlCalendar
           :days="calendarDays"
@@ -119,7 +140,7 @@
       </div>
 
       <div class="space-y-6">
-        <div class="card bg-base-100 border border-base-300 shadow-sm">
+        <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
           <div class="card-body p-5">
             <h3 class="font-bold text-base mb-3">สถิติแยกตามคู่เหรียญ</h3>
             <div v-if="loading" class="space-y-2">
@@ -142,7 +163,7 @@
           </div>
         </div>
 
-        <div class="card bg-base-100 border border-base-300 shadow-sm">
+        <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
           <div class="card-body p-5">
             <h3 class="font-bold text-base mb-3">สถิติตามช่วงเวลาเทรด</h3>
             <div v-if="loading" class="space-y-2">
@@ -186,6 +207,13 @@ const calendarDays = ref<PnlCalendarDay[]>([]);
 const now = new Date();
 const calYear = ref(now.getFullYear());
 const calMonth = ref(now.getMonth() + 1);
+
+const targetProgressPct = computed(() => {
+  if (!summary.value || !summary.value.monthly_target_pct || summary.value.monthly_target_pct <= 0) {
+    return 0;
+  }
+  return Math.max(0, (summary.value.net_pnl_pct / summary.value.monthly_target_pct) * 100);
+});
 
 const loadCalendar = async (y: number, m: number) => {
   calLoading.value = true;

@@ -1,12 +1,12 @@
 <template>
   <div class="space-y-6">
-    <div>
+    <div class="agy-fade-up stagger-1">
       <h1 class="text-2xl font-bold">เครื่องมือคำนวณความเสี่ยงก่อนเข้าเทรด</h1>
       <p class="text-sm opacity-60">คำนวณขนาดไม้, จุดล้างพอร์ต, ราคาถัวเฉลี่ย (DCA) และเช็คลิสต์เตือนสติก่อนเปิดออเดอร์</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="card agy-card agy-fade-up stagger-2 bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-5 space-y-4">
           <h3 class="font-bold text-base">1. คำนวณขนาดไม้และความเสี่ยง (Position Size)</h3>
 
@@ -54,7 +54,7 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="card agy-card agy-fade-up stagger-3 bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-5 space-y-4">
           <h3 class="font-bold text-base">2. คำนวณจุดล้างพอร์ต & เป้า ROE%</h3>
 
@@ -95,7 +95,7 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="card agy-card agy-fade-up stagger-4 bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-5 space-y-4">
           <h3 class="font-bold text-base">3. คำนวณราคาถัวเฉลี่ย (DCA Calculator)</h3>
 
@@ -131,7 +131,7 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 border border-base-300 shadow-sm">
+      <div class="card agy-card agy-fade-up stagger-5 bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-5 space-y-3">
           <div class="flex items-center justify-between">
             <h3 class="font-bold text-base">4. เช็คลิสต์เตือนสติก่อนเข้าออเดอร์</h3>

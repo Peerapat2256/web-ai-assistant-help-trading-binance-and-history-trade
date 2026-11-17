@@ -42,10 +42,9 @@ func NewAuthenService(userRepo repository.UserRepository, portfolioRepo reposito
 	}
 }
 
-func (s *authenServiceImpl) ensureDefaultConfigs(memberID int32) {
-	ctx := context.Background()
-	if _, err := s.portfolioRepo.GetByMemberID(ctx, memberID); err != nil {
-		_ = s.portfolioRepo.Upsert(ctx, &model.PortfolioSetting{
+func ensureMemberDefaultConfigs(ctx context.Context, memberID int32, portfolioRepo repository.PortfolioRepository, sheetRepo repository.SheetConfigRepository) {
+	if _, err := portfolioRepo.GetByMemberID(ctx, memberID); err != nil {
+		_ = portfolioRepo.Upsert(ctx, &model.PortfolioSetting{
 			MemberID:         memberID,
 			InitialBalance:   1000,
 			Currency:         "USDT",
@@ -53,17 +52,28 @@ func (s *authenServiceImpl) ensureDefaultConfigs(memberID int32) {
 			MaxDailyLossUSD:  50,
 		})
 	}
-	defaultSheetID := strings.TrimSpace(os.Getenv("GOOGLE_SHEET_ID"))
-	if defaultSheetID != "" {
-		if _, err := s.sheetRepo.GetByMemberID(ctx, memberID); err != nil {
-			_ = s.sheetRepo.Upsert(ctx, &model.SheetConfig{
+	if _, err := sheetRepo.GetByMemberID(ctx, memberID); err != nil {
+		defaultID := ""
+		sheetName := fmt.Sprintf("Trades_ID%d", memberID)
+		autoSync := false
+		if memberID == 1 {
+			defaultID = strings.TrimSpace(os.Getenv("GOOGLE_SHEET_ID"))
+			sheetName = "Trades"
+			autoSync = defaultID != ""
+		}
+		if defaultID != "" || memberID > 1 {
+			_ = sheetRepo.Upsert(ctx, &model.SheetConfig{
 				MemberID:      memberID,
-				SpreadsheetID: defaultSheetID,
-				SheetName:     "Trades",
-				IsAutoSync:    true,
+				SpreadsheetID: defaultID,
+				SheetName:     sheetName,
+				IsAutoSync:    autoSync,
 			})
 		}
 	}
+}
+
+func (s *authenServiceImpl) ensureDefaultConfigs(memberID int32) {
+	ensureMemberDefaultConfigs(context.Background(), memberID, s.portfolioRepo, s.sheetRepo)
 }
 
 func (s *authenServiceImpl) Login(email string, password string) (*model.AuthResponse, error) {

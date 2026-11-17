@@ -1,5 +1,5 @@
 <template>
-  <div class="card bg-base-100 border border-base-300 shadow-sm">
+  <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
     <div class="card-body p-5">
       <div class="flex items-center justify-between mb-3">
         <div>
