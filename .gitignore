@@ -1,0 +1,26 @@
+# Environment & Secrets (สำคัญมาก ห้ามเอาขึ้น Git)
+.env
+*.env
+.env.*
+service-account.json
+*.json.key
+
+# Backend build & temp
+back_end/backend.exe
+back_end/test_build.exe
+back_end/uploads/
+back_end/tmp/
+
+# Frontend dependencies & build output
+front_end/node_modules/
+front_end/.nuxt/
+front_end/.output/
+front_end/dist/
+*.log
+npm-debug.log*
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
