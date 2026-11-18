@@ -67,10 +67,10 @@ func StartServer() {
 	controller.NewsController(router)
 	controller.SheetController(router)
 
-	// รองรับตัวแปร PORT ของ Render / Cloud และ fallback มา SERVER_PORT / 8080
-	port := os.Getenv("PORT")
+	// รองรับทั้ง Localhost (SERVER_PORT) และ Cloud / Render (PORT)
+	port := os.Getenv("SERVER_PORT")
 	if port == "" {
-		port = os.Getenv("SERVER_PORT")
+		port = os.Getenv("PORT")
 	}
 	if port == "" {
 		port = "8080"
