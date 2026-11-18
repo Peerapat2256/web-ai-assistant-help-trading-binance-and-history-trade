@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -74,7 +75,7 @@ func callGemini(prompt string, imageBase64 string, mimeType string) (string, err
 		return "", err
 	}
 
-	models := []string{"gemini-2.5-flash", "gemini-2.0-flash"}
+	models := []string{"gemini-3.8-flash", "gemini-3.8-pro", "gemini-flash-latest"}
 	client := &http.Client{Timeout: 35 * time.Second}
 
 	var lastErr error
@@ -163,12 +164,21 @@ func ParseBinanceScreenshot(fh *multipart.FileHeader, savedURL string) (*model.P
 		return nil, err
 	}
 
-	prompt := `คุณคือผู้เชี่ยวชาญการอ่านภาพหน้าจอการเทรดจากแอป Binance (ทั้งหน้า PnL Card, Futures Position History, Order History และ Spot Trade)
+	prompt := `คุณคือผู้เชี่ยวชาญการอ่านภาพหน้าจอการเทรดจากแอปและเว็บ Binance (ทั้งหน้า PnL Card, Futures Position History, Order History และ Spot Trade)
+คำแนะนำสำคัญในการอ่านหน้า Position History ของ Binance:
+- ช่อง "Realized PNL" หรือ "Closing PNL" คือ pnl (ใส่เครื่องหมายลบถ้าติดลบ)
+- ช่อง "ROI" หรือ "ROE" คือ pnl_percentage (เป็น % เช่น -20.51 ให้ใส่ -20.51)
+- ช่อง "Closed Vol." คือ quantity (เช่น 0.015)
+- ช่อง "Entry Price" คือ entry_price และ "Avg. Close Price" คือ exit_price
+- ฝั่ง (position_side): หากในภาพมีเขียน Long/Short หรือสีเขียว/แดงให้ใช้ตามภาพ แต่ถ้าไม่มีให้ดูจากทิศทางราคาเทียบกับกำไร/ขาดทุน (เช่น ซื้อถูกแล้วขายแพงได้กำไร หรือขายต่ำกว่าทุนแล้วขาดทุน = LONG, ราคาลงแล้วได้กำไร หรือราคาขึ้นแล้วขาดทุน = SHORT)
+- Leverage: หากในภาพไม่แสดงตัวเลข Leverage ให้ใส่ 0 (ระบบจะคำนวณให้)
+- วัน-เวลา (trade_time): ใช้เวลาจากช่อง Closed หรือ Opened ในภาพ (รูปแบบ YYYY-MM-DD HH:MM)
+
 จงสกัดข้อมูลจากภาพนี้และตอบกลับเป็น JSON ที่ถูกต้องเท่านั้น ห้ามมีข้อความอื่นปน:
 {
   "symbol": "คู่เหรียญเป็นตัวพิมพ์ใหญ่ติดกัน เช่น BTCUSDT (หากไม่มีให้ใช้ BTCUSDT)",
   "position_side": "LONG หรือ SHORT หรือ SPOT",
-  "leverage": 10,
+  "leverage": 0,
   "entry_price": 0.0,
   "exit_price": 0.0,
   "quantity": 0.0,
@@ -219,13 +229,38 @@ func ParseBinanceScreenshot(fh *multipart.FileHeader, savedURL string) (*model.P
 		parsed.Symbol = "BTCUSDT"
 	}
 	parsed.Symbol = NormalizeBinanceSymbol(parsed.Symbol)
-	if parsed.PositionSide == "" {
-		parsed.PositionSide = "LONG"
+
+	// ตรวจสอบและคำนวณฝั่ง Long/Short จากราคาและ PnL หาก AI ไม่แน่ใจ
+	parsed.PositionSide = strings.ToUpper(strings.TrimSpace(parsed.PositionSide))
+	if parsed.PositionSide == "" || (parsed.PositionSide != "LONG" && parsed.PositionSide != "SHORT" && parsed.PositionSide != "SPOT") {
+		if parsed.EntryPrice > 0 && parsed.ExitPrice > 0 && parsed.Pnl != 0 {
+			priceUp := parsed.ExitPrice > parsed.EntryPrice
+			if (priceUp && parsed.Pnl > 0) || (!priceUp && parsed.Pnl < 0) {
+				parsed.PositionSide = "LONG"
+			} else {
+				parsed.PositionSide = "SHORT"
+			}
+		} else {
+			parsed.PositionSide = "LONG"
+		}
 	}
-	parsed.PositionSide = strings.ToUpper(parsed.PositionSide)
+
+	// คำนวณ Margin และ Leverage โดยประมาณหากในภาพ Position History ไม่ได้ระบุไว้
+	if parsed.MarginUsed <= 0 && parsed.Pnl != 0 && parsed.PnlPercentage != 0 {
+		parsed.MarginUsed = math.Round((math.Abs(parsed.Pnl)/(math.Abs(parsed.PnlPercentage)/100))*100) / 100
+	}
 	if parsed.Leverage <= 0 {
-		parsed.Leverage = 1
+		if parsed.MarginUsed > 0 && parsed.EntryPrice > 0 && parsed.Quantity > 0 {
+			estLev := math.Round((parsed.EntryPrice * parsed.Quantity) / parsed.MarginUsed)
+			if estLev < 1 {
+				estLev = 1
+			}
+			parsed.Leverage = int32(estLev)
+		} else {
+			parsed.Leverage = 10
+		}
 	}
+
 	if parsed.TradeTime == "" {
 		parsed.TradeTime = time.Now().Format("2006-01-02 15:04")
 	}
