@@ -12,15 +12,15 @@ export default defineNuxtConfig({
   ],
   css: ["~/assets/css/main.css"],
   typescript: {
-    tsConfig: { compilerOptions: { module: "ESNext" } },
-    nodeTsConfig: { compilerOptions: { module: "ESNext" } },
-    sharedTsConfig: { compilerOptions: { module: "ESNext" } },
+    tsConfig: { compilerOptions: { module: "esnext" } },
+    nodeTsConfig: { compilerOptions: { module: "esnext" } },
+    sharedTsConfig: { compilerOptions: { module: "esnext" } },
   },
   hooks: {
     "prepare:types": (ctx) => {
       for (const cfg of [ctx.tsConfig, ctx.nodeTsConfig, ctx.sharedTsConfig]) {
         if (cfg?.compilerOptions) {
-          cfg.compilerOptions.module = "ESNext";
+          cfg.compilerOptions.module = "esnext";
           delete (cfg.compilerOptions as Record<string, unknown>).libReplacement;
         }
       }

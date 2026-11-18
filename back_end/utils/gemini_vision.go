@@ -486,10 +486,11 @@ func buildFallbackChartAnalysis(market *model.MarketDataSummary, signal string, 
 
 	trendThai := "ไซด์เวย์ (แกว่งตัวออกข้าง)"
 	plan := fmt.Sprintf("รอราคาทดสอบแนวรับ %.4f หรือทะลุแนวต้าน %.4f อย่างชัดเจนก่อนตัดสินใจ", market.Support, market.Resistance)
-	if signal == "BULLISH" {
+	switch signal {
+	case "BULLISH":
 		trendThai = "แนวโน้มขาขึ้นระยะสั้น (ราคาอยู่เหนือ EMA20 และ EMA50)"
 		plan = fmt.Sprintf("พิจารณาจังหวะย่อตัวใกล้โซน EMA20 (%.4f) เพื่อหาโอกาส Long โดยวาง Stop Loss ใต้แนวรับ %.4f และเป้าทำกำไรที่แนวต้าน %.4f", market.EMA20, market.Support, market.Resistance)
-	} else if signal == "BEARISH" {
+	case "BEARISH":
 		trendThai = "แนวโน้มขาลงระยะสั้น (ราคาอยู่ต่ำกว่า EMA20 และ EMA50)"
 		plan = fmt.Sprintf("พิจารณาจังหวะเด้งทดสอบโซน EMA20 (%.4f) เพื่อหาโอกาส Short โดยวาง Stop Loss เหนือแนวต้าน %.4f และเป้าทำกำไรที่แนวรับ %.4f", market.EMA20, market.Resistance, market.Support)
 	}
@@ -619,10 +620,11 @@ func FetchAndAnalyzeCryptoNews(symbol string) ([]model.NewsItem, error) {
 				sentiment := inferNewsSentiment(d.Title + " " + d.Body)
 				reason := "ข่าวมีความเคลื่อนไหวตามรอบตลาดปกติ รอดูแรงซื้อขายยืนยันทิศทาง"
 				impact := 5.0
-				if sentiment == "BULLISH" {
+				switch sentiment {
+				case "BULLISH":
 					reason = "มีปัจจัยบวกหนุนความเชื่อมั่นและแรงซื้อในตลาด"
 					impact = 7.5
-				} else if sentiment == "BEARISH" {
+				case "BEARISH":
 					reason = "มีปัจจัยกดดันหรือความกังวลด้านแรงขาย/กฎระเบียบ ควรระวังความผันผวน"
 					impact = 7.5
 				}
