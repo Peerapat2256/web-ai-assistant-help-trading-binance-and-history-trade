@@ -12,7 +12,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -48,6 +50,140 @@ type geminiResponse struct {
 	} `json:"error,omitempty"`
 }
 
+var (
+	geminiModelLock    sync.RWMutex
+	geminiWorkingModel string
+	geminiCachedModels []string
+	geminiLastFetch    time.Time
+)
+
+type geminiModelInfo struct {
+	Name                       string   `json:"name"`
+	SupportedGenerationMethods []string `json:"supportedGenerationMethods"`
+}
+
+type geminiListModelsResp struct {
+	Models []geminiModelInfo `json:"models"`
+}
+
+func getCandidateGeminiModels(apiKey string) []string {
+	geminiModelLock.RLock()
+	if time.Since(geminiLastFetch) < 30*time.Minute && len(geminiCachedModels) > 0 {
+		models := make([]string, len(geminiCachedModels))
+		copy(models, geminiCachedModels)
+		curr := geminiWorkingModel
+		geminiModelLock.RUnlock()
+
+		if curr != "" {
+			for i, m := range models {
+				if m == curr {
+					models = append([]string{curr}, append(models[:i], models[i+1:]...)...)
+					break
+				}
+			}
+		}
+		return models
+	}
+	geminiModelLock.RUnlock()
+
+	defaultFallbacks := []string{
+		"gemini-3.8-flash",
+		"gemini-2.5-flash",
+		"gemini-1.5-flash",
+		"gemini-1.5-flash-latest",
+		"gemini-3.8-pro",
+		"gemini-2.5-pro",
+		"gemini-1.5-pro",
+		"gemini-flash-latest",
+		"gemini-pro-latest",
+		"gemini-2.0-flash-exp",
+	}
+
+	// Dynamic Discovery: ค้นหาโมเดลที่มีให้ใช้จริงจากบัญชี Google AI Studio
+	client := &http.Client{Timeout: 6 * time.Second}
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s", apiKey)
+	req, err := http.NewRequest("GET", url, nil)
+	discovered := []string{}
+	if err == nil {
+		req.Header.Set("x-goog-api-key", apiKey)
+		if resp, err := client.Do(req); err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				var listResp geminiListModelsResp
+				if body, err := io.ReadAll(resp.Body); err == nil {
+					if json.Unmarshal(body, &listResp) == nil {
+						for _, m := range listResp.Models {
+							canGen := false
+							for _, method := range m.SupportedGenerationMethods {
+								if method == "generateContent" {
+									canGen = true
+									break
+								}
+							}
+							if !canGen {
+								continue
+							}
+							cleanName := strings.TrimPrefix(m.Name, "models/")
+							if strings.HasPrefix(cleanName, "gemini") {
+								discovered = append(discovered, cleanName)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	geminiModelLock.Lock()
+	defer geminiModelLock.Unlock()
+
+	merged := []string{}
+	seen := make(map[string]bool)
+
+	// เรียงลำดับโมเดล: นำตระกูล Flash มาก่อน ตามด้วย Pro เพื่อความเร็วและประหยัด quota
+	sort.SliceStable(discovered, func(i, j int) bool {
+		flashI := strings.Contains(discovered[i], "flash")
+		flashJ := strings.Contains(discovered[j], "flash")
+		if flashI && !flashJ {
+			return true
+		}
+		if !flashI && flashJ {
+			return false
+		}
+		return discovered[i] > discovered[j]
+	})
+
+	for _, m := range discovered {
+		if !seen[m] {
+			seen[m] = true
+			merged = append(merged, m)
+		}
+	}
+	for _, m := range defaultFallbacks {
+		if !seen[m] {
+			seen[m] = true
+			merged = append(merged, m)
+		}
+	}
+
+	if len(merged) > 0 {
+		geminiCachedModels = merged
+		geminiLastFetch = time.Now()
+	}
+
+	result := make([]string, len(merged))
+	copy(result, merged)
+	if geminiWorkingModel != "" {
+		for i, m := range result {
+			if m == geminiWorkingModel {
+				result = append([]string{geminiWorkingModel}, append(result[:i], result[i+1:]...)...)
+				break
+			}
+		}
+	}
+	return result
+}
+
 func callGemini(prompt string, imageBase64 string, mimeType string) (string, error) {
 	apiKey := strings.TrimSpace(os.Getenv("GEMINI_API_KEY"))
 	if apiKey == "" {
@@ -75,7 +211,7 @@ func callGemini(prompt string, imageBase64 string, mimeType string) (string, err
 		return "", err
 	}
 
-	models := []string{"gemini-3.8-flash", "gemini-3.8-pro", "gemini-flash-latest"}
+	models := getCandidateGeminiModels(apiKey)
 	client := &http.Client{Timeout: 35 * time.Second}
 
 	var lastErr error
@@ -92,6 +228,7 @@ func callGemini(prompt string, imageBase64 string, mimeType string) (string, err
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
+			log.Printf("[Gemini Auto] Model %s network error: %v, trying next...", m, err)
 			continue
 		}
 
@@ -104,20 +241,27 @@ func callGemini(prompt string, imageBase64 string, mimeType string) (string, err
 			continue
 		}
 		if gemResp.Error != nil {
-			lastErr = fmt.Errorf("Gemini API error (%d): %s", gemResp.Error.Code, gemResp.Error.Message)
+			lastErr = fmt.Errorf("Gemini API (%s) error (%d): %s", m, gemResp.Error.Code, gemResp.Error.Message)
+			log.Printf("[Gemini Auto] Model %s failed (%d: %s), auto-switching...", m, gemResp.Error.Code, gemResp.Error.Message)
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
-			lastErr = fmt.Errorf("Gemini HTTP %d", resp.StatusCode)
+			lastErr = fmt.Errorf("Gemini (%s) HTTP %d", m, resp.StatusCode)
+			log.Printf("[Gemini Auto] Model %s returned HTTP %d, auto-switching...", m, resp.StatusCode)
 			continue
 		}
 		if len(gemResp.Candidates) > 0 && len(gemResp.Candidates[0].Content.Parts) > 0 {
+			// จำโมเดลที่ทำงานได้จริงไว้ใช้ต่อทันที ไม่ต้องวนหาใหม่ทุกครั้ง
+			geminiModelLock.Lock()
+			geminiWorkingModel = m
+			geminiModelLock.Unlock()
+			log.Printf("[Gemini Auto] Successfully connected and used model: %s", m)
 			return gemResp.Candidates[0].Content.Parts[0].Text, nil
 		}
 	}
 
 	if lastErr == nil {
-		lastErr = fmt.Errorf("ไม่สามารถติดต่อ Gemini API ได้")
+		lastErr = fmt.Errorf("ไม่สามารถติดต่อ Gemini API ได้จากทุกโมเดลที่ทดสอบ")
 	}
 	return "", lastErr
 }
