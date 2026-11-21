@@ -64,20 +64,43 @@ type TradeUpdateRequest struct {
 }
 
 type ParsedScreenshotData struct {
-	Symbol        string  `json:"symbol"`
-	PositionSide  string  `json:"position_side"`
-	Leverage      int32   `json:"leverage"`
-	EntryPrice    float64 `json:"entry_price"`
-	ExitPrice     float64 `json:"exit_price"`
-	Quantity      float64 `json:"quantity"`
-	MarginUsed    float64 `json:"margin_used"`
-	Pnl           float64 `json:"pnl"`
-	PnlPercentage float64 `json:"pnl_percentage"`
-	Fee           float64 `json:"fee"`
-	TradeTime     string  `json:"trade_time"`
-	ScreenshotURL string  `json:"screenshot_url"`
-	Confidence    string  `json:"confidence"`
-	RawSummary    string  `json:"raw_summary"`
+	Symbol          string  `json:"symbol"`
+	PositionSide    string  `json:"position_side"`
+	Leverage        int32   `json:"leverage"`
+	EntryPrice      float64 `json:"entry_price"`
+	ExitPrice       float64 `json:"exit_price"`
+	Quantity        float64 `json:"quantity"`
+	MarginUsed      float64 `json:"margin_used"`
+	Pnl             float64 `json:"pnl"`
+	PnlPercentage   float64 `json:"pnl_percentage"`
+	Fee             float64 `json:"fee"`
+	TradeTime       string  `json:"trade_time"`
+	ScreenshotURL   string  `json:"screenshot_url"`
+	Confidence      string  `json:"confidence"`
+	RawSummary      string  `json:"raw_summary"`
+	IsDuplicate     bool    `json:"is_duplicate"`
+	DuplicateReason string  `json:"duplicate_reason,omitempty"`
+}
+
+type ParsedScreenshotBatchResponse struct {
+	Mode           string                 `json:"mode"`
+	ScreenshotURL  string                 `json:"screenshot_url"`
+	Confidence     string                 `json:"confidence"`
+	RawSummary     string                 `json:"raw_summary"`
+	TotalFound     int                    `json:"total_found"`
+	DuplicateCount int                    `json:"duplicate_count"`
+	Trades         []ParsedScreenshotData `json:"trades"`
+}
+
+type BatchTradeCreateRequest struct {
+	Trades         []TradeCreateRequest `json:"trades" binding:"required,min=1"`
+	SkipDuplicates bool                 `json:"skip_duplicates"`
+}
+
+type BatchTradeCreateResponse struct {
+	CreatedCount int            `json:"created_count"`
+	SkippedCount int            `json:"skipped_count"`
+	Trades       []TradeHistory `json:"trades"`
 }
 
 type EquityCurvePoint struct {
@@ -216,4 +239,40 @@ type SheetConfigResponse struct {
 	LastSyncedAt  *time.Time `json:"last_synced_at"`
 	BotEmail      string     `json:"bot_email"`
 	SheetURL      string     `json:"sheet_url"`
+}
+
+type WithdrawalCreateRequest struct {
+	TransactionID  string  `json:"transaction_id"`
+	Amount         float64 `json:"amount" binding:"required"`
+	Currency       string  `json:"currency"`
+	Status         string  `json:"status"`
+	PaymentMethod  string  `json:"payment_method"`
+	WithdrawalTime string  `json:"withdrawal_time"`
+	Notes          string  `json:"notes"`
+	ScreenshotURL  string  `json:"screenshot_url"`
+}
+
+type WithdrawalUpdateRequest struct {
+	TransactionID  string  `json:"transaction_id"`
+	Amount         float64 `json:"amount"`
+	Currency       string  `json:"currency"`
+	Status         string  `json:"status"`
+	PaymentMethod  string  `json:"payment_method"`
+	WithdrawalTime string  `json:"withdrawal_time"`
+	Notes          string  `json:"notes"`
+}
+
+type ParsedWithdrawalData struct {
+	TransactionID   string  `json:"transaction_id"`
+	Amount          float64 `json:"amount"`
+	Currency        string  `json:"currency"`
+	Status          string  `json:"status"`
+	PaymentMethod   string  `json:"payment_method"`
+	WithdrawalTime  string  `json:"withdrawal_time"`
+	Notes           string  `json:"notes"`
+	ScreenshotURL   string  `json:"screenshot_url"`
+	Confidence      string  `json:"confidence"`
+	RawSummary      string  `json:"raw_summary"`
+	IsDuplicate     bool    `json:"is_duplicate"`
+	DuplicateReason string  `json:"duplicate_reason,omitempty"`
 }

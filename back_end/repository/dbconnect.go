@@ -68,6 +68,7 @@ func NewDbConnection() (*gorm.DB, error) {
 			&model.TradeHistory{},
 			&model.AiAnalysisLog{},
 			&model.SheetConfig{},
+			&model.WithdrawalHistory{},
 		); err != nil {
 			log.Printf("คำเตือน AutoMigrate: %v", err)
 		} else {

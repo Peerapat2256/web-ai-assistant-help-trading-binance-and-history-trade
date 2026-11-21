@@ -66,6 +66,7 @@ func StartServer() {
 	controller.AiController(router)
 	controller.NewsController(router)
 	controller.SheetController(router)
+	controller.WithdrawalController(router)
 
 	// รองรับทั้ง Localhost (SERVER_PORT) และ Cloud / Render (PORT)
 	port := os.Getenv("SERVER_PORT")

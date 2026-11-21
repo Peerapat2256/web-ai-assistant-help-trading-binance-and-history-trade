@@ -35,4 +35,22 @@ export interface ParsedScreenshotData {
   screenshot_url: string;
   confidence: string;
   raw_summary: string;
+  is_duplicate?: boolean;
+  duplicate_reason?: string;
+}
+
+export interface ParsedScreenshotBatchResponse {
+  mode: "single" | "multi";
+  screenshot_url: string;
+  confidence: string;
+  raw_summary: string;
+  total_found: number;
+  duplicate_count: number;
+  trades: ParsedScreenshotData[];
+}
+
+export interface BatchTradeCreateResponse {
+  created_count: number;
+  skipped_count: number;
+  trades: TradeHistory[];
 }

@@ -1,5 +1,9 @@
 import type { TradeCreateRequest } from "~/models/trade/request/trade_req";
-import type { ParsedScreenshotData, TradeHistory } from "~/models/trade/response/trade_res";
+import type {
+  BatchTradeCreateResponse,
+  ParsedScreenshotBatchResponse,
+  TradeHistory,
+} from "~/models/trade/response/trade_res";
 import { useTradeStore } from "~/stores/trade_store";
 
 export function useTrades() {
@@ -20,10 +24,10 @@ export function useTrades() {
     }
   };
 
-  const parseScreenshot = async (file: File): Promise<ParsedScreenshotData> => {
+  const parseScreenshot = async (file: File): Promise<ParsedScreenshotBatchResponse> => {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await $api.post<{ success: boolean; data: ParsedScreenshotData }>(
+    const res = await $api.post<{ success: boolean; data: ParsedScreenshotBatchResponse }>(
       "/trades/parse-screenshot",
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }
@@ -34,6 +38,17 @@ export function useTrades() {
   const createTrade = async (payload: TradeCreateRequest): Promise<TradeHistory> => {
     const res = await $api.post<{ success: boolean; data: TradeHistory }>("/trades", payload);
     return res.data.data;
+  };
+
+  const createTradesBatch = async (
+    trades: TradeCreateRequest[],
+    skipDuplicates = true
+  ): Promise<{ message: string; data: BatchTradeCreateResponse }> => {
+    const res = await $api.post<{ success: boolean; message: string; data: BatchTradeCreateResponse }>(
+      "/trades/batch",
+      { trades, skip_duplicates: skipDuplicates }
+    );
+    return { message: res.data.message, data: res.data.data };
   };
 
   const updateTrade = async (id: number, payload: Partial<TradeCreateRequest>): Promise<TradeHistory> => {
@@ -49,6 +64,7 @@ export function useTrades() {
     fetchTrades,
     parseScreenshot,
     createTrade,
+    createTradesBatch,
     updateTrade,
     deleteTrade,
   };

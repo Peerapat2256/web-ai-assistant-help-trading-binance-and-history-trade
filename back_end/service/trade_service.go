@@ -14,6 +14,8 @@ import (
 type TradeService interface {
 	ListTrades(ctx context.Context, memberID int32, symbol string, side string) ([]model.TradeHistory, error)
 	CreateTrade(ctx context.Context, memberID int32, req model.TradeCreateRequest) (*model.TradeHistory, error)
+	CreateTradesBatch(ctx context.Context, memberID int32, req model.BatchTradeCreateRequest) (*model.BatchTradeCreateResponse, error)
+	AnnotateDuplicates(ctx context.Context, memberID int32, parsed *model.ParsedScreenshotBatchResponse)
 	UpdateTrade(ctx context.Context, memberID int32, tradeID int32, req model.TradeUpdateRequest) (*model.TradeHistory, error)
 	DeleteTrade(ctx context.Context, memberID int32, tradeID int32) error
 }
@@ -94,6 +96,65 @@ func (s *tradeServiceImpl) CreateTrade(ctx context.Context, memberID int32, req 
 	_ = s.tradeRepo.UpdateSyncStatus(ctx, trade.TradeID, status)
 
 	return trade, nil
+}
+
+func (s *tradeServiceImpl) AnnotateDuplicates(ctx context.Context, memberID int32, parsed *model.ParsedScreenshotBatchResponse) {
+	if parsed == nil || len(parsed.Trades) == 0 {
+		return
+	}
+	dupCount := 0
+	seenKeys := make(map[string]bool)
+
+	for i := range parsed.Trades {
+		item := &parsed.Trades[i]
+		sym := utils.NormalizeBinanceSymbol(item.Symbol)
+		side := strings.ToUpper(strings.TrimSpace(item.PositionSide))
+		tTime := parseTradeTime(item.TradeTime)
+
+		key := fmt.Sprintf("%s|%s|%.2f|%.2f|%s", sym, side, item.EntryPrice, item.Pnl, tTime.Format("2006-01-02 15:04"))
+		if seenKeys[key] {
+			item.IsDuplicate = true
+			item.DuplicateReason = "รายการซ้ำภายในรูปภาพเดียวกัน"
+			dupCount++
+			continue
+		}
+		seenKeys[key] = true
+
+		if existing, err := s.tradeRepo.FindPotentialDuplicate(ctx, memberID, sym, side, item.EntryPrice, item.ExitPrice, item.Pnl, tTime); err == nil && existing != nil {
+			item.IsDuplicate = true
+			item.DuplicateReason = fmt.Sprintf("มีรายการนี้ในระบบแล้ว (%s)", existing.TradeCode)
+			dupCount++
+		}
+	}
+	parsed.DuplicateCount = dupCount
+}
+
+func (s *tradeServiceImpl) CreateTradesBatch(ctx context.Context, memberID int32, req model.BatchTradeCreateRequest) (*model.BatchTradeCreateResponse, error) {
+	res := &model.BatchTradeCreateResponse{
+		Trades: make([]model.TradeHistory, 0, len(req.Trades)),
+	}
+
+	for _, item := range req.Trades {
+		sym := utils.NormalizeBinanceSymbol(item.Symbol)
+		side := strings.ToUpper(strings.TrimSpace(item.PositionSide))
+		tTime := parseTradeTime(item.TradeTime)
+
+		if req.SkipDuplicates {
+			if existing, err := s.tradeRepo.FindPotentialDuplicate(ctx, memberID, sym, side, item.EntryPrice, item.ExitPrice, item.Pnl, tTime); err == nil && existing != nil {
+				res.SkippedCount++
+				continue
+			}
+		}
+
+		created, err := s.CreateTrade(ctx, memberID, item)
+		if err != nil {
+			return nil, err
+		}
+		res.Trades = append(res.Trades, *created)
+		res.CreatedCount++
+	}
+
+	return res, nil
 }
 
 func (s *tradeServiceImpl) UpdateTrade(ctx context.Context, memberID int32, tradeID int32, req model.TradeUpdateRequest) (*model.TradeHistory, error) {

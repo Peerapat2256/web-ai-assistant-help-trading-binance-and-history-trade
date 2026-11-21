@@ -302,114 +302,256 @@ func readMultipartBase64(fh *multipart.FileHeader) (string, string, error) {
 	return base64.StdEncoding.EncodeToString(data), mime, nil
 }
 
-func ParseBinanceScreenshot(fh *multipart.FileHeader, savedURL string) (*model.ParsedScreenshotData, error) {
+func normalizeParsedTrade(p *model.ParsedScreenshotData, savedURL string) {
+	if p.Symbol == "" {
+		p.Symbol = "BTCUSDT"
+	}
+	p.Symbol = NormalizeBinanceSymbol(p.Symbol)
+
+	p.PositionSide = strings.ToUpper(strings.TrimSpace(p.PositionSide))
+	if p.PositionSide == "S" || p.PositionSide == "SELL" {
+		p.PositionSide = "SHORT"
+	} else if p.PositionSide == "B" || p.PositionSide == "BUY" {
+		p.PositionSide = "LONG"
+	}
+	if p.PositionSide == "" || (p.PositionSide != "LONG" && p.PositionSide != "SHORT" && p.PositionSide != "SPOT") {
+		if p.EntryPrice > 0 && p.ExitPrice > 0 && p.Pnl != 0 {
+			priceUp := p.ExitPrice > p.EntryPrice
+			if (priceUp && p.Pnl > 0) || (!priceUp && p.Pnl < 0) {
+				p.PositionSide = "LONG"
+			} else {
+				p.PositionSide = "SHORT"
+			}
+		} else {
+			p.PositionSide = "LONG"
+		}
+	}
+
+	if p.MarginUsed <= 0 && p.Pnl != 0 && p.PnlPercentage != 0 {
+		p.MarginUsed = math.Round((math.Abs(p.Pnl)/(math.Abs(p.PnlPercentage)/100))*100) / 100
+	}
+	if p.Leverage <= 0 {
+		if p.MarginUsed > 0 && p.EntryPrice > 0 && p.Quantity > 0 {
+			estLev := math.Round((p.EntryPrice * p.Quantity) / p.MarginUsed)
+			if estLev < 1 {
+				estLev = 1
+			}
+			p.Leverage = int32(estLev)
+		} else {
+			p.Leverage = 10
+		}
+	}
+
+	if strings.TrimSpace(p.TradeTime) == "" {
+		p.TradeTime = time.Now().Format("2006-01-02 15:04")
+	}
+	p.ScreenshotURL = savedURL
+	p.Confidence = "ai_verified"
+}
+
+func ParseBinanceScreenshot(fh *multipart.FileHeader, savedURL string) (*model.ParsedScreenshotBatchResponse, error) {
 	b64, mime, err := readMultipartBase64(fh)
 	if err != nil {
 		return nil, err
 	}
 
-	prompt := `คุณคือผู้เชี่ยวชาญการอ่านภาพหน้าจอการเทรดจากแอปและเว็บ Binance (ทั้งหน้า PnL Card, Futures Position History, Order History และ Spot Trade)
-คำแนะนำสำคัญในการอ่านหน้า Position History ของ Binance:
-- ช่อง "Realized PNL" หรือ "Closing PNL" คือ pnl (ใส่เครื่องหมายลบถ้าติดลบ)
-- ช่อง "ROI" หรือ "ROE" คือ pnl_percentage (เป็น % เช่น -20.51 ให้ใส่ -20.51)
-- ช่อง "Closed Vol." คือ quantity (เช่น 0.015)
-- ช่อง "Entry Price" คือ entry_price และ "Avg. Close Price" คือ exit_price
-- ฝั่ง (position_side): หากในภาพมีเขียน Long/Short หรือสีเขียว/แดงให้ใช้ตามภาพ แต่ถ้าไม่มีให้ดูจากทิศทางราคาเทียบกับกำไร/ขาดทุน (เช่น ซื้อถูกแล้วขายแพงได้กำไร หรือขายต่ำกว่าทุนแล้วขาดทุน = LONG, ราคาลงแล้วได้กำไร หรือราคาขึ้นแล้วขาดทุน = SHORT)
-- Leverage: หากในภาพไม่แสดงตัวเลข Leverage ให้ใส่ 0 (ระบบจะคำนวณให้)
-- วัน-เวลา (trade_time): ใช้เวลาจากช่อง Closed หรือ Opened ในภาพ (รูปแบบ YYYY-MM-DD HH:MM)
+	prompt := `คุณคือผู้เชี่ยวชาญการอ่านภาพหน้าจอการเทรดจากแอปและเว็บ Binance (ทั้งหน้า PnL Card เดี่ยว, Futures Position History ที่มีหลายรายการ, Order History และ Spot Trade)
 
-จงสกัดข้อมูลจากภาพนี้และตอบกลับเป็น JSON ที่ถูกต้องเท่านั้น ห้ามมีข้อความอื่นปน:
+คำแนะนำสำคัญ:
+1. ตรวจสอบก่อนว่าภาพนี้มี "1 ออเดอร์" หรือ "หลายออเดอร์" (เช่น หน้า Position History ที่เรียงลงมาหลายบล็อก)
+   - หากมีหลายออเดอร์ จงสกัดข้อมูลออกมา **ทุกออเดอร์ที่มองเห็นในภาพ** เรียงจากบนลงล่างใส่ในอาเรย์ "trades" และตั้ง "mode": "multi"
+   - หากมีแค่ออเดอร์เดียว ให้ใส่ 1 รายการในอาเรย์ "trades" และตั้ง "mode": "single"
+2. วิธีอ่านหน้า Position History ของ Binance:
+   - สัญลักษณ์ตัว [S] สีแดงข้างชื่อเหรียญ = "SHORT", ตัว [B] สีเขียว = "LONG"
+   - ป้าย "Cross 90X" หรือ "Isolated 20X" คือ leverage (เช่น 90 หรือ 20)
+   - ช่อง "Realized PNL" หรือ "Closing PNL" คือ pnl (ใส่เครื่องหมายลบถ้าติดลบ เช่น -114.17)
+   - ช่อง "ROI" หรือ "ROE" คือ pnl_percentage (เป็น % เช่น 63.43 หรือ -105.11)
+   - ช่อง "Closed Vol." คือ quantity (เช่น 0.132)
+   - ช่อง "Avg. Entry Price" หรือ "Entry Price" คือ entry_price และ "Avg. Close Price" คือ exit_price
+   - วัน-เวลา (trade_time): ใช้เวลาจากช่อง "Closed" เป็นหลัก (รูปแบบ YYYY-MM-DD HH:MM:SS หรือ YYYY-MM-DD HH:MM)
+
+จงตอบกลับเป็น JSON ที่ถูกต้องเท่านั้น ห้ามมีข้อความอื่นปน:
 {
-  "symbol": "คู่เหรียญเป็นตัวพิมพ์ใหญ่ติดกัน เช่น BTCUSDT (หากไม่มีให้ใช้ BTCUSDT)",
-  "position_side": "LONG หรือ SHORT หรือ SPOT",
-  "leverage": 0,
-  "entry_price": 0.0,
-  "exit_price": 0.0,
-  "quantity": 0.0,
-  "margin_used": 0.0,
-  "pnl": 0.0,
-  "pnl_percentage": 0.0,
-  "fee": 0.0,
-  "trade_time": "YYYY-MM-DD HH:MM (หากไม่พบในภาพให้ใช้เวลาปัจจุบัน)",
-  "raw_summary": "สรุปสิ่งที่อ่านได้จากภาพสั้นๆ เป็นภาษาไทย"
+  "mode": "single หรือ multi",
+  "raw_summary": "สรุปสั้นๆ เป็นภาษาไทย เช่น ตรวจพบประวัติการเทรด 3 ออเดอร์จากหน้า Position History",
+  "trades": [
+    {
+      "symbol": "BTCUSDT",
+      "position_side": "LONG หรือ SHORT หรือ SPOT",
+      "leverage": 90,
+      "entry_price": 0.0,
+      "exit_price": 0.0,
+      "quantity": 0.0,
+      "margin_used": 0.0,
+      "pnl": 0.0,
+      "pnl_percentage": 0.0,
+      "fee": 0.0,
+      "trade_time": "YYYY-MM-DD HH:MM:SS"
+    }
+  ]
 }`
+
+	fallbackSingle := func(summary string) *model.ParsedScreenshotBatchResponse {
+		item := model.ParsedScreenshotData{
+			Symbol:        "BTCUSDT",
+			PositionSide:  "LONG",
+			Leverage:      10,
+			TradeTime:     time.Now().Format("2006-01-02 15:04"),
+			ScreenshotURL: savedURL,
+			Confidence:    "manual_review",
+			RawSummary:    summary,
+		}
+		return &model.ParsedScreenshotBatchResponse{
+			Mode:          "single",
+			ScreenshotURL: savedURL,
+			Confidence:    "manual_review",
+			RawSummary:    summary,
+			TotalFound:    1,
+			Trades:        []model.ParsedScreenshotData{item},
+		}
+	}
 
 	text, err := callGemini(prompt, b64, mime)
 	if err != nil {
 		log.Printf("[Gemini Vision] ParseBinanceScreenshot fallback: %v", err)
-		return &model.ParsedScreenshotData{
-			Symbol:        "BTCUSDT",
-			PositionSide:  "LONG",
-			Leverage:      10,
-			EntryPrice:    0,
-			ExitPrice:     0,
-			Quantity:      0,
-			MarginUsed:    0,
-			Pnl:           0,
-			PnlPercentage: 0,
-			Fee:           0,
-			TradeTime:     time.Now().Format("2006-01-02 15:04"),
+		return fallbackSingle(fmt.Sprintf("อัปโหลดรูปสำเร็จ แต่ระบบ AI Vision ยังไม่สามารถสแกนอัตโนมัติได้ในขณะนี้ (%v) กรุณากรอกหรือตรวจสอบตัวเลขก่อนบันทึก", err)), nil
+	}
+
+	type aiMultiResp struct {
+		Mode       string                       `json:"mode"`
+		RawSummary string                       `json:"raw_summary"`
+		Trades     []model.ParsedScreenshotData `json:"trades"`
+	}
+
+	cleaned := cleanJSONBlock(text)
+	var multi aiMultiResp
+	if err := json.Unmarshal([]byte(cleaned), &multi); err == nil && len(multi.Trades) > 0 {
+		for i := range multi.Trades {
+			normalizeParsedTrade(&multi.Trades[i], savedURL)
+		}
+		mode := strings.ToLower(strings.TrimSpace(multi.Mode))
+		if len(multi.Trades) > 1 {
+			mode = "multi"
+		} else if mode != "multi" {
+			mode = "single"
+		}
+		summary := strings.TrimSpace(multi.RawSummary)
+		if summary == "" {
+			if mode == "multi" {
+				summary = fmt.Sprintf("ตรวจพบประวัติการเทรดหลายออเดอร์ทั้งหมด %d รายการ", len(multi.Trades))
+			} else {
+				summary = "AI สแกนข้อมูลการเทรดสำเร็จ กรุณาตรวจสอบตัวเลขก่อนบันทึก"
+			}
+		}
+		return &model.ParsedScreenshotBatchResponse{
+			Mode:          mode,
 			ScreenshotURL: savedURL,
-			Confidence:    "manual_review",
-			RawSummary:    fmt.Sprintf("อัปโหลดรูปสำเร็จ แต่ระบบ AI Vision ยังไม่สามารถสแกนอัตโนมัติได้ในขณะนี้ (%v) กรุณากรอกหรือตรวจสอบตัวเลขก่อนบันทึก", err),
+			Confidence:    "ai_verified",
+			RawSummary:    summary,
+			TotalFound:    len(multi.Trades),
+			Trades:        multi.Trades,
 		}, nil
 	}
 
-	var parsed model.ParsedScreenshotData
+	// Fallback หาก AI ตอบกลับมาเป็น JSON object เดี่ยว
+	var single model.ParsedScreenshotData
+	if err := json.Unmarshal([]byte(cleaned), &single); err == nil && (single.Symbol != "" || single.Pnl != 0 || single.EntryPrice != 0) {
+		normalizeParsedTrade(&single, savedURL)
+		summary := strings.TrimSpace(single.RawSummary)
+		if summary == "" {
+			summary = "AI สแกนข้อมูลการเทรดสำเร็จ กรุณาตรวจสอบตัวเลขก่อนบันทึก"
+		}
+		return &model.ParsedScreenshotBatchResponse{
+			Mode:          "single",
+			ScreenshotURL: savedURL,
+			Confidence:    "ai_verified",
+			RawSummary:    summary,
+			TotalFound:    1,
+			Trades:        []model.ParsedScreenshotData{single},
+		}, nil
+	}
+
+	return fallbackSingle("AI อ่านข้อมูลบางส่วนได้ไม่สมบูรณ์ กรุณาตรวจสอบตัวเลขก่อนบันทึก"), nil
+}
+
+func ParseWithdrawalScreenshot(fh *multipart.FileHeader, savedURL string) (*model.ParsedWithdrawalData, error) {
+	b64, mime, err := readMultipartBase64(fh)
+	if err != nil {
+		return nil, err
+	}
+
+	prompt := `คุณคือผู้เชี่ยวชาญการอ่านภาพหน้าจอ "รายละเอียดการถอนเงิน" (Withdrawal Details) จากแอป Binance TH / Binance / Bitkub / แอปธนาคาร
+คำแนะนำในการอ่าน:
+- จำนวนเงิน (amount): อ่านเป็นตัวเลขบวกเสมอ เช่น ในภาพเขียน "-10,232.09 THB" ให้ตอบ amount เป็น 10232.09 และ currency เป็น "THB"
+- สถานะ (status): เช่น "สำเร็จ", "รอดำเนินการ", "ล้มเหลว" (หากภาษาอังกฤษ Completed/Success ให้ตอบ "สำเร็จ")
+- วันที่ (withdrawal_time): รูปแบบ "YYYY-MM-DD HH:MM:SS" เช่น "2026-11-21 13:57:15"
+- วิธีการชำระเงิน (payment_method): เช่น "BANK_TRANSFER", "PROMPTPAY", "P2P"
+- หมายเหตุการทำธุรกรรม (notes): หากเป็น "--" หรือ "-" หรือว่าง ให้ใส่ ""
+- หมายเลขธุรกรรม (transaction_id): รหัสอ้างอิงทั้งหมด เช่น "W1330793249660076034"
+
+จงตอบกลับเป็น JSON ที่ถูกต้องเท่านั้น ห้ามมีข้อความอื่นปน:
+{
+  "transaction_id": "W1330793249660076034",
+  "amount": 10232.09,
+  "currency": "THB",
+  "status": "สำเร็จ",
+  "payment_method": "BANK_TRANSFER",
+  "withdrawal_time": "2026-11-21 13:57:15",
+  "notes": "",
+  "raw_summary": "สรุปสั้นๆ เช่น สแกนสลิปถอนเงิน 10,232.09 THB สำเร็จ"
+}`
+
+	text, err := callGemini(prompt, b64, mime)
+	if err != nil {
+		log.Printf("[Gemini Vision] ParseWithdrawalScreenshot fallback: %v", err)
+		return &model.ParsedWithdrawalData{
+			Currency:       "THB",
+			Status:         "สำเร็จ",
+			PaymentMethod:  "BANK_TRANSFER",
+			WithdrawalTime: time.Now().Format("2006-01-02 15:04:05"),
+			ScreenshotURL:  savedURL,
+			Confidence:     "manual_review",
+			RawSummary:     fmt.Sprintf("อัปโหลดรูปสำเร็จ แต่ AI ไม่สามารถอ่านอัตโนมัติได้ (%v) กรุณากรอกข้อมูลเอง", err),
+		}, nil
+	}
+
+	var parsed model.ParsedWithdrawalData
 	cleaned := cleanJSONBlock(text)
 	if err := json.Unmarshal([]byte(cleaned), &parsed); err != nil {
-		return &model.ParsedScreenshotData{
-			Symbol:        "BTCUSDT",
-			PositionSide:  "LONG",
-			Leverage:      10,
-			TradeTime:     time.Now().Format("2006-01-02 15:04"),
-			ScreenshotURL: savedURL,
-			Confidence:    "manual_review",
-			RawSummary:    "AI อ่านข้อมูลบางส่วนได้ไม่สมบูรณ์ กรุณาตรวจสอบตัวเลขก่อนบันทึก",
+		return &model.ParsedWithdrawalData{
+			Currency:       "THB",
+			Status:         "สำเร็จ",
+			PaymentMethod:  "BANK_TRANSFER",
+			WithdrawalTime: time.Now().Format("2006-01-02 15:04:05"),
+			ScreenshotURL:  savedURL,
+			Confidence:     "manual_review",
+			RawSummary:     "AI อ่านข้อมูลบางส่วนได้ไม่สมบูรณ์ กรุณาตรวจสอบตัวเลขก่อนบันทึก",
 		}, nil
 	}
 
-	if parsed.Symbol == "" {
-		parsed.Symbol = "BTCUSDT"
+	parsed.Amount = math.Abs(parsed.Amount)
+	if strings.TrimSpace(parsed.Currency) == "" {
+		parsed.Currency = "THB"
 	}
-	parsed.Symbol = NormalizeBinanceSymbol(parsed.Symbol)
-
-	// ตรวจสอบและคำนวณฝั่ง Long/Short จากราคาและ PnL หาก AI ไม่แน่ใจ
-	parsed.PositionSide = strings.ToUpper(strings.TrimSpace(parsed.PositionSide))
-	if parsed.PositionSide == "" || (parsed.PositionSide != "LONG" && parsed.PositionSide != "SHORT" && parsed.PositionSide != "SPOT") {
-		if parsed.EntryPrice > 0 && parsed.ExitPrice > 0 && parsed.Pnl != 0 {
-			priceUp := parsed.ExitPrice > parsed.EntryPrice
-			if (priceUp && parsed.Pnl > 0) || (!priceUp && parsed.Pnl < 0) {
-				parsed.PositionSide = "LONG"
-			} else {
-				parsed.PositionSide = "SHORT"
-			}
-		} else {
-			parsed.PositionSide = "LONG"
-		}
+	parsed.Currency = strings.ToUpper(strings.TrimSpace(parsed.Currency))
+	if strings.TrimSpace(parsed.Status) == "" {
+		parsed.Status = "สำเร็จ"
 	}
-
-	// คำนวณ Margin และ Leverage โดยประมาณหากในภาพ Position History ไม่ได้ระบุไว้
-	if parsed.MarginUsed <= 0 && parsed.Pnl != 0 && parsed.PnlPercentage != 0 {
-		parsed.MarginUsed = math.Round((math.Abs(parsed.Pnl)/(math.Abs(parsed.PnlPercentage)/100))*100) / 100
+	if strings.TrimSpace(parsed.PaymentMethod) == "" {
+		parsed.PaymentMethod = "BANK_TRANSFER"
 	}
-	if parsed.Leverage <= 0 {
-		if parsed.MarginUsed > 0 && parsed.EntryPrice > 0 && parsed.Quantity > 0 {
-			estLev := math.Round((parsed.EntryPrice * parsed.Quantity) / parsed.MarginUsed)
-			if estLev < 1 {
-				estLev = 1
-			}
-			parsed.Leverage = int32(estLev)
-		} else {
-			parsed.Leverage = 10
-		}
+	if parsed.Notes == "--" || parsed.Notes == "-" {
+		parsed.Notes = ""
 	}
-
-	if parsed.TradeTime == "" {
-		parsed.TradeTime = time.Now().Format("2006-01-02 15:04")
+	if strings.TrimSpace(parsed.WithdrawalTime) == "" {
+		parsed.WithdrawalTime = time.Now().Format("2006-01-02 15:04:05")
 	}
+	parsed.TransactionID = strings.TrimSpace(parsed.TransactionID)
 	parsed.ScreenshotURL = savedURL
 	parsed.Confidence = "ai_verified"
+	if strings.TrimSpace(parsed.RawSummary) == "" {
+		parsed.RawSummary = fmt.Sprintf("สแกนรายละเอียดการถอน %.2f %s สำเร็จ", parsed.Amount, parsed.Currency)
+	}
 	return &parsed, nil
 }
 

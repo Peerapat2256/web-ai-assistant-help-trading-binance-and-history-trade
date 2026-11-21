@@ -92,3 +92,22 @@ type SheetConfig struct {
 func (SheetConfig) TableName() string {
 	return "sheet_config"
 }
+
+type WithdrawalHistory struct {
+	WithdrawalID   int32     `gorm:"column:withdrawal_id;primaryKey;autoIncrement" json:"withdrawal_id"`
+	MemberID       int32     `gorm:"column:member_id;index:idx_withdrawal_member;not null" json:"member_id"`
+	TransactionID  string    `gorm:"column:transaction_id;type:varchar(120);index:idx_withdrawal_tx;default:''" json:"transaction_id"`
+	Amount         float64   `gorm:"column:amount;type:decimal(18,2);not null" json:"amount"`
+	Currency       string    `gorm:"column:currency;type:varchar(20);default:'THB'" json:"currency"`
+	Status         string    `gorm:"column:status;type:varchar(30);default:'สำเร็จ'" json:"status"`
+	PaymentMethod  string    `gorm:"column:payment_method;type:varchar(60);default:'BANK_TRANSFER'" json:"payment_method"`
+	WithdrawalTime time.Time `gorm:"column:withdrawal_time;index:idx_withdrawal_time;not null" json:"withdrawal_time"`
+	Notes          string    `gorm:"column:notes;type:text" json:"notes"`
+	ScreenshotURL  string    `gorm:"column:screenshot_url;type:varchar(255);default:''" json:"screenshot_url"`
+	CreatedAt      time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	UpdatedAt      time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
+}
+
+func (WithdrawalHistory) TableName() string {
+	return "withdrawal_history"
+}
