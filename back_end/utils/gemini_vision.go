@@ -480,17 +480,21 @@ func ParseWithdrawalScreenshot(fh *multipart.FileHeader, savedURL string) (*mode
 		return nil, err
 	}
 
-	prompt := `คุณคือผู้เชี่ยวชาญการอ่านภาพหน้าจอ "รายละเอียดการถอนเงิน" (Withdrawal Details) จากแอป Binance TH / Binance / Bitkub / แอปธนาคาร
+	prompt := `คุณคือผู้เชี่ยวชาญการอ่านภาพหน้าจอ "รายละเอียดการฝากเงิน" (Deposit) และ "รายละเอียดการถอนเงิน" (Withdrawal) จากแอป Binance TH / Binance / Bitkub / แอปธนาคาร
 คำแนะนำในการอ่าน:
-- จำนวนเงิน (amount): อ่านเป็นตัวเลขบวกเสมอ เช่น ในภาพเขียน "-10,232.09 THB" ให้ตอบ amount เป็น 10232.09 และ currency เป็น "THB"
+- ประเภทธุรกรรม (transaction_type):
+  - หากในภาพเขียนว่า "รายละเอียดการฝาก", "ฝากเงิน", "Deposit", "รับเงิน", หรือยอดเงินมีเครื่องหมายบวก (+) ให้ตอบ "DEPOSIT"
+  - หากในภาพเขียนว่า "รายละเอียดการถอน", "ถอนเงิน", "Withdraw", หรือยอดเงินมีเครื่องหมายลบ (-) เช่น "-10,232.09 THB" ให้ตอบ "WITHDRAW"
+- จำนวนเงิน (amount): อ่านเป็นตัวเลขบวกเสมอ เช่น "-10,232.09 THB" หรือ "+5,000.00 THB" ให้ตอบเป็นตัวเลขบวก (10232.09 หรือ 5000.00) และระบุ currency เช่น "THB" หรือ "USDT"
 - สถานะ (status): เช่น "สำเร็จ", "รอดำเนินการ", "ล้มเหลว" (หากภาษาอังกฤษ Completed/Success ให้ตอบ "สำเร็จ")
 - วันที่ (withdrawal_time): รูปแบบ "YYYY-MM-DD HH:MM:SS" เช่น "2026-11-21 13:57:15"
-- วิธีการชำระเงิน (payment_method): เช่น "BANK_TRANSFER", "PROMPTPAY", "P2P"
+- วิธีการชำระเงิน (payment_method): เช่น "BANK_TRANSFER", "PROMPTPAY", "QR_PAYMENT", "P2P"
 - หมายเหตุการทำธุรกรรม (notes): หากเป็น "--" หรือ "-" หรือว่าง ให้ใส่ ""
-- หมายเลขธุรกรรม (transaction_id): รหัสอ้างอิงทั้งหมด เช่น "W1330793249660076034"
+- หมายเลขธุรกรรม (transaction_id): รหัสอ้างอิงทั้งหมด เช่น "W1330793249660076034" หรือ "D..."
 
 จงตอบกลับเป็น JSON ที่ถูกต้องเท่านั้น ห้ามมีข้อความอื่นปน:
 {
+  "transaction_type": "WITHDRAW หรือ DEPOSIT",
   "transaction_id": "W1330793249660076034",
   "amount": 10232.09,
   "currency": "THB",
@@ -498,20 +502,21 @@ func ParseWithdrawalScreenshot(fh *multipart.FileHeader, savedURL string) (*mode
   "payment_method": "BANK_TRANSFER",
   "withdrawal_time": "2026-11-21 13:57:15",
   "notes": "",
-  "raw_summary": "สรุปสั้นๆ เช่น สแกนสลิปถอนเงิน 10,232.09 THB สำเร็จ"
+  "raw_summary": "สรุปสั้นๆ เช่น ตรวจพบสลิปถอนเงิน 10,232.09 THB สำเร็จ หรือ ตรวจพบสลิปฝากเงินเข้า 5,000.00 THB สำเร็จ"
 }`
 
 	text, err := callGemini(prompt, b64, mime)
 	if err != nil {
 		log.Printf("[Gemini Vision] ParseWithdrawalScreenshot fallback: %v", err)
 		return &model.ParsedWithdrawalData{
-			Currency:       "THB",
-			Status:         "สำเร็จ",
-			PaymentMethod:  "BANK_TRANSFER",
-			WithdrawalTime: time.Now().Format("2006-01-02 15:04:05"),
-			ScreenshotURL:  savedURL,
-			Confidence:     "manual_review",
-			RawSummary:     fmt.Sprintf("อัปโหลดรูปสำเร็จ แต่ AI ไม่สามารถอ่านอัตโนมัติได้ (%v) กรุณากรอกข้อมูลเอง", err),
+			TransactionType: "WITHDRAW",
+			Currency:        "THB",
+			Status:          "สำเร็จ",
+			PaymentMethod:   "BANK_TRANSFER",
+			WithdrawalTime:  time.Now().Format("2006-01-02 15:04:05"),
+			ScreenshotURL:   savedURL,
+			Confidence:      "manual_review",
+			RawSummary:      fmt.Sprintf("อัปโหลดรูปสำเร็จ แต่ AI ไม่สามารถอ่านอัตโนมัติได้ (%v) กรุณากรอกข้อมูลเอง", err),
 		}, nil
 	}
 
@@ -519,16 +524,21 @@ func ParseWithdrawalScreenshot(fh *multipart.FileHeader, savedURL string) (*mode
 	cleaned := cleanJSONBlock(text)
 	if err := json.Unmarshal([]byte(cleaned), &parsed); err != nil {
 		return &model.ParsedWithdrawalData{
-			Currency:       "THB",
-			Status:         "สำเร็จ",
-			PaymentMethod:  "BANK_TRANSFER",
-			WithdrawalTime: time.Now().Format("2006-01-02 15:04:05"),
-			ScreenshotURL:  savedURL,
-			Confidence:     "manual_review",
-			RawSummary:     "AI อ่านข้อมูลบางส่วนได้ไม่สมบูรณ์ กรุณาตรวจสอบตัวเลขก่อนบันทึก",
+			TransactionType: "WITHDRAW",
+			Currency:        "THB",
+			Status:          "สำเร็จ",
+			PaymentMethod:   "BANK_TRANSFER",
+			WithdrawalTime:  time.Now().Format("2006-01-02 15:04:05"),
+			ScreenshotURL:   savedURL,
+			Confidence:      "manual_review",
+			RawSummary:      "AI อ่านข้อมูลบางส่วนได้ไม่สมบูรณ์ กรุณาตรวจสอบตัวเลขก่อนบันทึก",
 		}, nil
 	}
 
+	parsed.TransactionType = strings.ToUpper(strings.TrimSpace(parsed.TransactionType))
+	if parsed.TransactionType != "DEPOSIT" {
+		parsed.TransactionType = "WITHDRAW"
+	}
 	parsed.Amount = math.Abs(parsed.Amount)
 	if strings.TrimSpace(parsed.Currency) == "" {
 		parsed.Currency = "THB"
@@ -550,7 +560,11 @@ func ParseWithdrawalScreenshot(fh *multipart.FileHeader, savedURL string) (*mode
 	parsed.ScreenshotURL = savedURL
 	parsed.Confidence = "ai_verified"
 	if strings.TrimSpace(parsed.RawSummary) == "" {
-		parsed.RawSummary = fmt.Sprintf("สแกนรายละเอียดการถอน %.2f %s สำเร็จ", parsed.Amount, parsed.Currency)
+		actionText := "ถอนเงิน"
+		if parsed.TransactionType == "DEPOSIT" {
+			actionText = "ฝากเงินเข้า"
+		}
+		parsed.RawSummary = fmt.Sprintf("สแกนรายละเอียดการ%s %.2f %s สำเร็จ", actionText, parsed.Amount, parsed.Currency)
 	}
 	return &parsed, nil
 }

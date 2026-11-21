@@ -3,21 +3,23 @@
     <!-- Header -->
     <div class="agy-fade-up stagger-1 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-bold">ประวัติการถอนเงิน & คำนวณภาษี</h1>
-        <p class="text-sm opacity-60">บันทึกสลิปการถอนเงินด้วย AI เช็คหมายเลขธุรกรรมซ้ำอัตโนมัติ และประเมินภาษีเงินได้รายปี</p>
+        <h1 class="text-2xl font-bold">ประวัติฝาก–ถอนเงิน & คำนวณภาษีอัจฉริยะ</h1>
+        <p class="text-sm opacity-60">
+          สแกนสลิปได้ทั้งฝากเข้าและถอนออกด้วย AI หักยอดพอร์ตอัตโนมัติ และเตือนเตรียมเงินจ่ายภาษีรายปีตามกฎหมายไทยล่าสุด
+        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select v-model.number="selectedYear" class="select select-bordered select-sm" @change="loadData">
           <option :value="0">ทุกปีภาษี</option>
           <option v-for="y in yearOptions" :key="y" :value="y">ปี {{ y }} (พ.ศ. {{ y + 543 }})</option>
         </select>
-        <button class="btn btn-outline btn-sm gap-1.5" @click="exportCSV" :disabled="withdrawals.length === 0">
+        <button class="btn btn-outline btn-sm gap-1.5" @click="exportCSV" :disabled="records.length === 0">
           <Download class="w-4 h-4" />
           ส่งออก CSV ยื่นภาษี
         </button>
         <button class="btn btn-primary btn-sm gap-1.5" @click="openScanModal">
           <Sparkles class="w-4 h-4" />
-          สแกนสลิปถอนเงินด้วย AI
+          สแกนสลิป ฝาก/ถอน ด้วย AI
         </button>
         <button class="btn btn-outline btn-sm gap-1.5" @click="openManualModal">
           <Plus class="w-4 h-4" />
@@ -26,80 +28,202 @@
       </div>
     </div>
 
+    <!-- Smart Tax Readiness Alert Banner -->
+    <div
+      v-if="taxMode === 'thai_sec_exempt'"
+      class="agy-fade-up stagger-1 alert alert-success shadow-sm border border-success/40"
+    >
+      <ShieldCheck class="w-6 h-6 shrink-0" />
+      <div class="space-y-0.5 text-xs sm:text-sm">
+        <div class="font-bold">โหมดกระดานไทยที่ได้รับใบอนุญาต ก.ล.ต. (เช่น Binance TH / Bitkub) — ยกเว้นภาษี 0%</div>
+        <p class="opacity-85 text-xs">
+          ตาม <strong>กฎกระทรวง ฉบับที่ 399 (พ.ศ. 2568)</strong> กำไรส่วนทุน (Capital Gains) จากการซื้อขายผ่านผู้ให้บริการที่ได้รับใบอนุญาต ก.ล.ต. ไทย
+          ได้รับ<strong>ยกเว้นภาษีเงินได้บุคคลธรรมดา 5 ปี (1 ม.ค. 2568 – 31 ธ.ค. 2572)</strong> แนะนำให้เก็บประวัติฝาก–ถอนและ Statement ไว้เป็นหลักฐานครับ
+        </p>
+      </div>
+    </div>
+
+    <div
+      v-else
+      :class="[
+        'agy-fade-up stagger-1 alert shadow-sm border',
+        taxAlertLevel === 'must_pay'
+          ? 'alert-warning border-warning/60'
+          : taxAlertLevel === 'must_file'
+          ? 'alert-info border-info/50'
+          : 'bg-base-100/90 border-base-300',
+      ]"
+    >
+      <AlertTriangle v-if="taxAlertLevel === 'must_pay'" class="w-6 h-6 shrink-0" />
+      <Info v-else class="w-6 h-6 shrink-0 text-info" />
+      <div class="flex-1 space-y-1">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="font-bold text-sm">
+            <template v-if="taxAlertLevel === 'must_pay'">
+              ถึงเกณฑ์เสียภาษีแล้ว! แนะนำให้กันเงินสำรองจ่ายภาษีปี {{ selectedYear || currentYear }} ไว้ {{ formatMoney(taxResult.totalTax) }} บาท
+            </template>
+            <template v-else-if="taxAlertLevel === 'must_file'">
+              ถึงเกณฑ์ต้องยื่นแบบ ภ.ง.ด.90 (แต่ยังไม่ต้องเสียภาษี — เหลือโควตาปลอดภาษีอีก {{ formatMoney(remainingTaxFreeQuota) }} บาท)
+            </template>
+            <template v-else>
+              สถานะภาษีปลอดภัย — ยังไม่ถึงเกณฑ์ยื่นแบบ (เหลืออีก {{ formatMoney(remainingFilingThreshold) }} บาทถึงเกณฑ์ยื่น ภ.ง.ด.90)
+            </template>
+          </div>
+          <span class="badge badge-sm font-mono">
+            {{ taxAlertLevel === 'must_pay' ? `กันเงินแนะนำ ${suggestedReservePct.toFixed(1)}% / ยอดถอน` : 'ภาษีที่ต้องจ่าย: 0.00 บาท' }}
+          </span>
+        </div>
+
+        <p class="text-xs opacity-85">
+          <template v-if="taxAlertLevel === 'must_pay'">
+            กำไรสุทธิจากการถอน (หลังหักยอดฝากเข้า) อยู่ที่ <strong>{{ formatMoney(netCryptoProfitTHB) }} บาท</strong>
+            เงินได้สุทธิหลังหักลดหย่อน <strong>{{ formatMoney(taxableIncome) }} บาท</strong> (ฐานสูงสุด {{ taxResult.maxRate }}%)
+            — ควรทยอยกันเงินไว้ประมาณ <strong>{{ formatMoney(taxResult.totalTax / 12) }} บาท/เดือน</strong> สำหรับยื่น ภ.ง.ด.90 (ม.ค.–มี.ค. ปีถัดไป)
+          </template>
+          <template v-else-if="taxAlertLevel === 'must_file'">
+            รายได้พึงประเมินเกิน 60,000 บาท/ปี (เกณฑ์คนโสด) กฎหมายกำหนดให้ยื่นแบบ ภ.ง.ด.90 ตามรอบปีภาษี แม้ภาษีจะเป็น 0 บาท (เริ่มเสียภาษี 5% เมื่อกำไรสุทธิรวมเกิน {{ formatMoney(taxFreeGrossLimit) }} บาท)
+          </template>
+          <template v-else>
+            โควตาปลอดภาษีทั้งหมดของคุณปีนี้อยู่ที่ <strong>{{ formatMoney(taxFreeGrossLimit) }} บาท</strong> (ค่าลดหย่อน {{ formatMoney(personalDeduction) }} + ยกเว้นขั้นแรก 150,000 บาท) — เหลือพื้นที่ถอนกำไรปลอดภาษีอีก <strong>{{ formatMoney(remainingTaxFreeQuota) }} บาท</strong>
+          </template>
+        </p>
+
+        <!-- แถบความคืบหน้าโควตาปลอดภาษี -->
+        <div class="pt-1 space-y-1">
+          <div class="flex justify-between text-[11px] opacity-75">
+            <span>ความคืบหน้าสู่เกณฑ์เริ่มเสียภาษี 5% ({{ formatMoney(grossTaxableBase) }} / {{ formatMoney(taxFreeGrossLimit) }} บาท)</span>
+            <span class="font-mono font-semibold">{{ Math.min(100, taxQuotaUsedPct).toFixed(1) }}%</span>
+          </div>
+          <progress
+            :class="[
+              'progress w-full h-2',
+              taxQuotaUsedPct >= 100 ? 'progress-warning' : taxQuotaUsedPct >= 70 ? 'progress-info' : 'progress-success',
+            ]"
+            :value="Math.min(100, taxQuotaUsedPct)"
+            max="100"
+          ></progress>
+        </div>
+      </div>
+    </div>
+
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 agy-fade-up stagger-2">
       <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-4">
-          <div class="text-xs opacity-60">ยอดถอนรวม ({{ selectedYear === 0 ? 'ทั้งหมด' : `ปี ${selectedYear}` }})</div>
+          <div class="text-xs opacity-60">ยอดถอนออกรวม ({{ selectedYear === 0 ? 'ทั้งหมด' : `ปี ${selectedYear}` }})</div>
           <div class="text-2xl font-bold text-primary font-mono mt-1">
             {{ formatMoney(totalWithdrawnTHB) }} <span class="text-xs font-normal opacity-70">THB</span>
           </div>
-          <div class="text-[11px] opacity-60 mt-1">นับเฉพาะรายการสถานะ "สำเร็จ"</div>
+          <div class="text-[11px] opacity-60 mt-1">ถอนสำเร็จ {{ completedWithdrawCount }} ครั้ง</div>
         </div>
       </div>
 
       <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-4">
-          <div class="text-xs opacity-60">จำนวนครั้งที่ถอนสำเร็จ</div>
-          <div class="text-2xl font-bold font-mono mt-1">
-            {{ completedCount }} <span class="text-xs font-normal opacity-70">ครั้ง</span>
+          <div class="text-xs opacity-60">ยอดฝากเข้า (เงินต้นอัตโนมัติ)</div>
+          <div class="text-2xl font-bold text-success font-mono mt-1">
+            +{{ formatMoney(totalDepositedTHB) }} <span class="text-xs font-normal opacity-70">THB</span>
           </div>
-          <div class="text-[11px] opacity-60 mt-1">เฉลี่ย {{ formatMoney(avgPerWithdrawal) }} บาท / ครั้ง</div>
+          <div class="text-[11px] opacity-60 mt-1">ฝากสำเร็จ {{ completedDepositCount }} ครั้ง (นำไปหักต้นทุนให้อัตโนมัติ)</div>
         </div>
       </div>
 
       <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-4">
-          <div class="text-xs opacity-60">เงินได้สุทธิประเมิน (หลังหักลดหย่อน)</div>
+          <div class="text-xs opacity-60">กำไรสุทธิที่ถอนเข้าบัญชี</div>
           <div class="text-2xl font-bold text-info font-mono mt-1">
-            {{ formatMoney(taxableIncome) }} <span class="text-xs font-normal opacity-70">THB</span>
+            {{ formatMoney(netCryptoProfitTHB) }} <span class="text-xs font-normal opacity-70">THB</span>
           </div>
-          <div class="text-[11px] opacity-60 mt-1">หักต้นทุน + ลดหย่อน {{ formatMoney(totalDeductions) }} บาท</div>
+          <div class="text-[11px] opacity-60 mt-1">ยอดถอนรวม − ยอดฝากและเงินต้น</div>
         </div>
       </div>
 
       <div class="card agy-card bg-base-100/90 border border-base-300 shadow-sm">
         <div class="card-body p-4">
-          <div class="text-xs opacity-60">ภาษีเงินได้ประเมินเบื้องต้น</div>
-          <div class="text-2xl font-bold text-warning font-mono mt-1">
-            {{ formatMoney(taxResult.totalTax) }} <span class="text-xs font-normal opacity-70">THB</span>
+          <div class="text-xs opacity-60">เงินสำรองภาษีที่ควรเตรียมไว้</div>
+          <div :class="['text-2xl font-bold font-mono mt-1', effectiveTaxPayable > 0 ? 'text-warning' : 'text-success']">
+            {{ formatMoney(effectiveTaxPayable) }} <span class="text-xs font-normal opacity-70">THB</span>
           </div>
           <div class="text-[11px] opacity-60 mt-1">
-            อัตราภาษีเฉลี่ย {{ effectiveTaxRate.toFixed(2) }}% (ฐานสูงสุด {{ taxResult.maxRate }}%)
+            {{ taxMode === 'thai_sec_exempt' ? 'ยกเว้น 0% (กฎกระทรวง 399)' : `อัตราเฉลี่ย ${effectiveTaxRate.toFixed(2)}% (ฐานสูงสุด ${taxResult.maxRate}%)` }}
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Thai Tax Estimator Panel -->
+    <!-- Thai Smart Tax Calculator & e-Payment Monitor -->
     <div class="card agy-card agy-fade-up stagger-3 bg-base-100/90 border border-base-300 shadow-sm">
       <div class="card-body p-5 space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <Calculator class="w-5 h-5 text-primary" />
-            <h2 class="font-bold text-base">เครื่องคำนวณภาษีเงินได้บุคคลธรรมดา (แบบขั้นบันไดของไทย)</h2>
+            <h2 class="font-bold text-base">เครื่องคำนวณภาษีคริปโตอัจฉริยะ (อ้างอิงกฎหมายไทย 2568–2572)</h2>
           </div>
-          <span class="badge badge-primary badge-outline text-xs">
-            ทิป: แคปหน้าจอรายละเอียดการถอนแล้วกด Ctrl + V บนหน้านี้ได้เลย
-          </span>
+          <div class="join">
+            <button
+              type="button"
+              :class="['btn btn-xs join-item', taxMode === 'overseas_futures' ? 'btn-primary' : 'btn-ghost border border-base-300']"
+              @click="taxMode = 'overseas_futures'"
+            >
+              เว็บนอก / Futures / P2P (ภ.ง.ด.90)
+            </button>
+            <button
+              type="button"
+              :class="['btn btn-xs join-item', taxMode === 'thai_sec_exempt' ? 'btn-success' : 'btn-ghost border border-base-300']"
+              @click="taxMode = 'thai_sec_exempt'"
+            >
+              กระดานไทย ก.ล.ต. ล้วนๆ (ยกเว้น 0%)
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <label class="form-control">
-            <span class="label-text text-xs mb-1">เงินต้น/ยอดฝากที่หักได้ (THB)</span>
-            <input v-model.number="costBasis" type="number" min="0" step="any" class="input input-bordered input-sm font-mono" />
+            <span class="label-text text-xs mb-1">เงินต้นเพิ่มเติมที่ไม่ได้สแกนสลิปฝาก (THB)</span>
+            <input v-model.number="extraCostBasis" type="number" min="0" step="any" class="input input-bordered input-sm font-mono" />
           </label>
           <label class="form-control">
             <span class="label-text text-xs mb-1">ค่าลดหย่อนส่วนตัวและอื่นๆ (THB)</span>
             <input v-model.number="personalDeduction" type="number" min="0" step="any" class="input input-bordered input-sm font-mono" />
           </label>
           <label class="form-control">
-            <span class="label-text text-xs mb-1">รายได้อื่นในปีภาษีเดียวกัน (THB)</span>
+            <span class="label-text text-xs mb-1">รายได้อื่นในปีภาษีเดียวกัน เช่น เงินเดือน (THB)</span>
             <input v-model.number="otherIncome" type="number" min="0" step="any" class="input input-bordered input-sm font-mono" />
           </label>
         </div>
 
-        <div class="overflow-x-auto">
+        <!-- e-Payment Threshold Tracker -->
+        <div class="p-3.5 rounded-xl bg-base-200/50 border border-base-300/70 space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span class="font-semibold">ติดตามเกณฑ์ภาษี e-Payment (ธนาคารส่งข้อมูลให้กรมสรรพากรอัตโนมัติ)</span>
+            <span
+              :class="[
+                'badge badge-xs',
+                isEPaymentTriggered ? 'badge-error' : 'badge-success badge-outline',
+              ]"
+            >
+              {{ isEPaymentTriggered ? 'เข้าเกณฑ์ธนาคารรายงานสรรพากร' : 'ยังไม่เข้าเกณฑ์รายงานอัตโนมัติ' }}
+            </span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+            <div>
+              <div class="flex justify-between mb-1">
+                <span>เกณฑ์ที่ 1: จำนวนครั้งรับโอนเข้าบัญชี ({{ completedWithdrawCount }} / 400 ครั้ง)</span>
+                <span class="font-mono">{{ Math.min(100, (completedWithdrawCount / 400) * 100).toFixed(1) }}%</span>
+              </div>
+              <progress class="progress progress-info w-full h-1.5" :value="Math.min(400, completedWithdrawCount)" max="400"></progress>
+            </div>
+            <div>
+              <div class="flex justify-between mb-1">
+                <span>เกณฑ์ที่ 2: ยอดเงินรับโอนรวม ({{ formatMoney(totalWithdrawnTHB) }} / 2,000,000 บาท)</span>
+                <span class="font-mono">{{ Math.min(100, (totalWithdrawnTHB / 2000000) * 100).toFixed(1) }}%</span>
+              </div>
+              <progress class="progress progress-warning w-full h-1.5" :value="Math.min(2000000, totalWithdrawnTHB)" max="2000000"></progress>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="taxMode === 'overseas_futures'" class="overflow-x-auto">
           <table class="table table-xs w-full">
             <thead>
               <tr class="bg-base-200/70">
@@ -125,27 +249,57 @@
             </tbody>
           </table>
         </div>
-        <p class="text-[11px] opacity-60">
-          * หมายเหตุ: ตัวเลขนี้เป็นการประเมินเบื้องต้นจากยอดถอนเงินสด (THB) ตามอัตราก้าวหน้ากรมสรรพากร เพื่อใช้วางแผนภาษีเท่านั้น ควรเก็บหลักฐานการโอนเข้า-ออกและตรวจสอบเงื่อนไขกฎหมายภาษีคริปโตประจำปีภาษีอีกครั้ง
+
+        <p class="text-[11px] opacity-60 leading-relaxed">
+          * ข้อมูลอ้างอิง: กฎกระทรวง ฉบับที่ 399 (พ.ศ. 2568) ยกเว้นภาษี Capital Gains 5 ปี (2568–2572) เฉพาะการซื้อขายผ่านกระดานไทยที่ได้รับใบอนุญาต ก.ล.ต. เท่านั้น
+          ส่วนกำไรจากกระดานต่างประเทศ (เช่น Binance Global Futures) หรือ P2P ที่นำเข้ามาในไทยยังคงคำนวณตาม ม.40(4)(ฌ) และคำสั่ง ป.161/2566
+          (แนะนำให้สแกนเก็บสลิปฝากเงินเข้าทุกครั้งเพื่อให้ระบบหักต้นทุนให้อัตโนมัติครับ)
         </p>
       </div>
     </div>
 
-    <!-- Withdrawal History Table -->
+    <!-- Deposit & Withdrawal History Table -->
     <div class="card agy-card agy-fade-up stagger-4 bg-base-100/90 border border-base-300 shadow-sm overflow-hidden">
-      <div class="p-4 border-b border-base-300/70 flex items-center justify-between">
-        <h2 class="font-bold text-base">ตารางประวัติการถอนเงิน ({{ withdrawals.length }} รายการ)</h2>
+      <div class="p-4 border-b border-base-300/70 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <h2 class="font-bold text-base">ตารางประวัติฝาก–ถอนเงิน ({{ filteredRecords.length }} รายการ)</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="join">
+            <button
+              :class="['btn btn-xs join-item', typeFilter === 'ALL' ? 'btn-primary' : 'btn-ghost border border-base-300']"
+              @click="typeFilter = 'ALL'"
+            >
+              ทั้งหมด
+            </button>
+            <button
+              :class="['btn btn-xs join-item', typeFilter === 'WITHDRAW' ? 'btn-warning' : 'btn-ghost border border-base-300']"
+              @click="typeFilter = 'WITHDRAW'"
+            >
+              ถอนออก
+            </button>
+            <button
+              :class="['btn btn-xs join-item', typeFilter === 'DEPOSIT' ? 'btn-success' : 'btn-ghost border border-base-300']"
+              @click="typeFilter = 'DEPOSIT'"
+            >
+              ฝากเข้า
+            </button>
+          </div>
+          <span class="badge badge-primary badge-outline text-xs hidden md:inline-flex">
+            ทิป: กด Ctrl + V วางสลิปฝากหรือถอนบนหน้านี้ได้เลย
+          </span>
+        </div>
       </div>
 
       <div v-if="loading" class="p-6 space-y-3">
         <div v-for="n in 5" :key="n" class="skeleton h-12 w-full rounded-lg"></div>
       </div>
 
-      <div v-else-if="withdrawals.length === 0" class="p-12 text-center space-y-3">
-        <p class="text-sm opacity-60">ยังไม่มีประวัติการถอนเงินในปีที่เลือก</p>
+      <div v-else-if="filteredRecords.length === 0" class="p-12 text-center space-y-3">
+        <p class="text-sm opacity-60">ยังไม่มีรายการฝาก–ถอนเงินในเงื่อนไขที่เลือก</p>
         <button class="btn btn-primary btn-sm gap-2" @click="openScanModal">
           <Sparkles class="w-4 h-4" />
-          สแกนสลิปถอนเงินใบแรก
+          สแกนสลิปฝากหรือถอนใบแรก
         </button>
       </div>
 
@@ -153,22 +307,35 @@
         <table class="table table-sm w-full">
           <thead>
             <tr class="bg-base-200/70">
+              <th>ประเภท</th>
               <th>วันที่</th>
               <th class="text-right">จำนวนเงิน</th>
               <th>สถานะ</th>
               <th>วิธีการชำระเงิน</th>
               <th>หมายเลขธุรกรรม</th>
-              <th>หมายเหตุการทำธุรกรรม</th>
+              <th>หมายเหตุ</th>
               <th class="text-right">จัดการ</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="w in withdrawals" :key="w.withdrawal_id" class="hover">
+            <tr v-for="w in filteredRecords" :key="w.withdrawal_id" class="hover">
+              <td>
+                <span
+                  :class="[
+                    'badge badge-xs font-semibold',
+                    w.transaction_type === 'DEPOSIT' ? 'badge-success' : 'badge-warning',
+                  ]"
+                >
+                  {{ w.transaction_type === 'DEPOSIT' ? 'ฝากเข้า' : 'ถอนออก' }}
+                </span>
+              </td>
               <td class="font-mono text-xs whitespace-nowrap">{{ formatDateTime(w.withdrawal_time) }}</td>
               <td class="text-right font-mono whitespace-nowrap">
-                <div class="font-bold text-sm text-primary">-{{ formatMoney(w.amount) }} {{ w.currency }}</div>
+                <div :class="['font-bold text-sm', w.transaction_type === 'DEPOSIT' ? 'text-success' : 'text-primary']">
+                  {{ w.transaction_type === 'DEPOSIT' ? '+' : '-' }}{{ formatMoney(w.amount) }} {{ w.currency }}
+                </div>
                 <div v-if="w.amount_usdt && w.currency !== 'USDT'" class="text-[11px] opacity-60">
-                  หักพอร์ต -{{ formatMoney(w.amount_usdt) }} USDT
+                  {{ w.transaction_type === 'DEPOSIT' ? 'เพิ่มพอร์ต +' : 'หักพอร์ต -' }}{{ formatMoney(w.amount_usdt) }} USDT
                 </div>
               </td>
               <td>
@@ -197,7 +364,7 @@
                 </div>
                 <span v-else class="opacity-40 text-xs">--</span>
               </td>
-              <td class="text-xs opacity-75 max-w-[180px] truncate">{{ w.notes || "--" }}</td>
+              <td class="text-xs opacity-75 max-w-[160px] truncate">{{ w.notes || "--" }}</td>
               <td class="text-right">
                 <div class="flex justify-end gap-1">
                   <button class="btn btn-ghost btn-xs" @click="openEditModal(w)" title="แก้ไข">
@@ -214,14 +381,14 @@
       </div>
     </div>
 
-    <!-- Modal สแกน / เพิ่ม / แก้ไขรายการถอน -->
+    <!-- Modal สแกน / เพิ่ม / แก้ไขรายการฝาก-ถอน -->
     <dialog :open="modalOpen" class="modal modal-bottom sm:modal-middle bg-black/60">
       <div class="modal-box max-w-xl bg-base-100 border border-base-300">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2">
             <Sparkles v-if="modalMode === 'scan'" class="w-5 h-5 text-primary" />
             <h3 class="font-bold text-lg">
-              {{ editingId ? 'แก้ไขประวัติการถอนเงิน' : modalMode === 'scan' ? 'สแกนสลิปถอนเงินด้วย AI' : 'เพิ่มประวัติการถอนเงิน' }}
+              {{ editingId ? 'แก้ไขประวัติฝาก–ถอนเงิน' : modalMode === 'scan' ? 'สแกนสลิปฝาก / ถอนเงินด้วย AI' : 'เพิ่มประวัติฝาก–ถอนเงิน' }}
             </h3>
           </div>
           <button class="btn btn-sm btn-circle btn-ghost" @click="closeModal">✕</button>
@@ -239,8 +406,8 @@
             ]"
           >
             <UploadCloud class="w-10 h-10 text-primary mb-2" />
-            <span class="font-semibold text-sm">คลิกเลือกรูปสลิปการถอน, ลากวาง, หรือกด Ctrl + V วางได้เลย</span>
-            <span class="text-xs opacity-60 mt-1">รองรับหน้า "รายละเอียดการถอน" จาก Binance TH / Binance / Bitkub</span>
+            <span class="font-semibold text-sm">คลิกเลือกรูปสลิปฝากหรือถอน, ลากวาง, หรือกด Ctrl + V วางได้เลย</span>
+            <span class="text-xs opacity-60 mt-1">AI จะตรวจจับเองอัตโนมัติว่าเป็นสลิป "ฝากเงินเข้า" หรือ "ถอนเงินออก" พร้อมเช็คซ้ำ</span>
             <input ref="fileInputRef" type="file" accept="image/*" class="hidden" @change="onFileSelect" />
           </label>
 
@@ -249,7 +416,7 @@
           </div>
 
           <div v-if="scanning" class="space-y-2 p-4 rounded-xl bg-base-200/60">
-            <div class="text-xs font-medium text-primary">AI กำลังอ่านยอดถอน หมายเลขธุรกรรม และตรวจสอบรายการซ้ำ...</div>
+            <div class="text-xs font-medium text-primary">AI กำลังแยกประเภทฝาก/ถอน อ่านยอดเงิน หมายเลขธุรกรรม และเช็คซ้ำ...</div>
             <div class="skeleton h-5 w-2/3"></div>
             <div class="skeleton h-10 w-full"></div>
           </div>
@@ -269,9 +436,34 @@
             <span>คำเตือนรายการซ้ำ: {{ duplicateWarning }}</span>
           </div>
 
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              :class="[
+                'btn btn-sm',
+                form.transaction_type === 'WITHDRAW' ? 'btn-warning' : 'btn-outline border-base-300',
+              ]"
+              @click="form.transaction_type = 'WITHDRAW'"
+            >
+              ถอนเงินออก (หักพอร์ต)
+            </button>
+            <button
+              type="button"
+              :class="[
+                'btn btn-sm',
+                form.transaction_type === 'DEPOSIT' ? 'btn-success' : 'btn-outline border-base-300',
+              ]"
+              @click="form.transaction_type = 'DEPOSIT'"
+            >
+              ฝากเงินเข้า (เพิ่มพอร์ต + เงินต้น)
+            </button>
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label class="form-control sm:col-span-2">
-              <span class="label-text text-xs mb-1">จำนวนเงินที่ถอน</span>
+              <span class="label-text text-xs mb-1">
+                {{ form.transaction_type === 'DEPOSIT' ? 'จำนวนเงินที่ฝากเข้า' : 'จำนวนเงินที่ถอนออก' }}
+              </span>
               <input v-model.number="form.amount" type="number" step="any" min="0.01" class="input input-bordered input-sm font-mono" required />
             </label>
             <label class="form-control">
@@ -285,7 +477,9 @@
           </div>
 
           <label v-if="form.currency === 'THB'" class="form-control">
-            <span class="label-text text-xs mb-1">ยอดหักพอร์ต (USDT) — เว้นว่างหรือใส่ 0 เพื่อให้ระบบแปลงจากเรทสด USDT/THB อัตโนมัติ</span>
+            <span class="label-text text-xs mb-1">
+              {{ form.transaction_type === 'DEPOSIT' ? 'ยอดเพิ่มเข้าพอร์ต (USDT)' : 'ยอดหักพอร์ต (USDT)' }} — เว้นว่างหรือใส่ 0 เพื่อให้ระบบแปลงจากเรทสด USDT/THB อัตโนมัติ
+            </span>
             <input v-model.number="form.amount_usdt" type="number" step="any" min="0" placeholder="แปลงอัตโนมัติตามเรท Binance USDT/THB" class="input input-bordered input-sm font-mono" />
           </label>
 
@@ -317,7 +511,7 @@
 
           <label class="form-control">
             <span class="label-text text-xs mb-1">หมายเหตุการทำธุรกรรม</span>
-            <input v-model="form.notes" type="text" placeholder="เช่น ถอนกำไรเข้าธนาคารกสิกร..." class="input input-bordered input-sm" />
+            <input v-model="form.notes" type="text" placeholder="เช่น เติมทุนเทรด หรือ ถอนกำไรเข้าธนาคาร..." class="input input-bordered input-sm" />
           </label>
 
           <div class="modal-action">
@@ -326,7 +520,7 @@
             </button>
             <button type="button" class="btn btn-ghost btn-sm" @click="closeModal">ยกเลิก</button>
             <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">
-              {{ saving ? 'กำลังบันทึก...' : editingId ? 'บันทึกการแก้ไข' : 'บันทึกประวัติการถอน' }}
+              {{ saving ? 'กำลังบันทึก...' : editingId ? 'บันทึกการแก้ไข' : 'บันทึกรายการ' }}
             </button>
           </div>
         </form>
@@ -336,7 +530,19 @@
 </template>
 
 <script setup lang="ts">
-import { Sparkles, Plus, Download, Calculator, UploadCloud, Copy, Pencil, Trash2 } from "lucide-vue-next";
+import {
+  Sparkles,
+  Plus,
+  Download,
+  Calculator,
+  UploadCloud,
+  Copy,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  Info,
+  ShieldCheck,
+} from "lucide-vue-next";
 import Swal from "sweetalert2";
 import { useWithdrawals } from "~/composables/api/useWithdrawals";
 import type { WithdrawalCreateRequest, WithdrawalHistory } from "~/models/withdrawal/withdrawal_model";
@@ -354,12 +560,14 @@ const {
 const currentYear = new Date().getFullYear();
 const yearOptions = [currentYear + 1, currentYear, currentYear - 1, currentYear - 2];
 const selectedYear = ref<number>(currentYear);
+const typeFilter = ref<"ALL" | "WITHDRAW" | "DEPOSIT">("ALL");
 
 const loading = ref(false);
-const withdrawals = ref<WithdrawalHistory[]>([]);
+const records = ref<WithdrawalHistory[]>([]);
 
-// ตัวแปรคำนวณภาษี
-const costBasis = ref<number>(0);
+// ตัวแปรคำนวณภาษีอัจฉริยะ
+const taxMode = ref<"overseas_futures" | "thai_sec_exempt">("overseas_futures");
+const extraCostBasis = ref<number>(0);
 const personalDeduction = ref<number>(60000);
 const otherIncome = ref<number>(0);
 
@@ -377,6 +585,7 @@ const duplicateWarning = ref("");
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const form = reactive<WithdrawalCreateRequest>({
+  transaction_type: "WITHDRAW",
   transaction_id: "",
   amount: 0,
   currency: "THB",
@@ -388,28 +597,65 @@ const form = reactive<WithdrawalCreateRequest>({
   screenshot_url: "",
 });
 
-const completedTHBItems = computed(() =>
-  withdrawals.value.filter(
-    (w) => (w.status === "สำเร็จ" || w.status === "Completed") && w.currency === "THB"
+const filteredRecords = computed(() => {
+  if (typeFilter.value === "ALL") return records.value;
+  return records.value.filter((r) => (r.transaction_type || "WITHDRAW") === typeFilter.value);
+});
+
+const completedWithdrawTHBItems = computed(() =>
+  records.value.filter(
+    (w) =>
+      (w.transaction_type || "WITHDRAW") === "WITHDRAW" &&
+      (w.status === "สำเร็จ" || w.status === "Completed") &&
+      w.currency === "THB"
+  )
+);
+
+const completedDepositTHBItems = computed(() =>
+  records.value.filter(
+    (w) =>
+      w.transaction_type === "DEPOSIT" &&
+      (w.status === "สำเร็จ" || w.status === "Completed") &&
+      w.currency === "THB"
   )
 );
 
 const totalWithdrawnTHB = computed(() =>
-  completedTHBItems.value.reduce((acc, w) => acc + Number(w.amount || 0), 0)
+  completedWithdrawTHBItems.value.reduce((acc, w) => acc + Number(w.amount || 0), 0)
 );
 
-const completedCount = computed(() => completedTHBItems.value.length);
-
-const avgPerWithdrawal = computed(() =>
-  completedCount.value > 0 ? totalWithdrawnTHB.value / completedCount.value : 0
+const totalDepositedTHB = computed(() =>
+  completedDepositTHBItems.value.reduce((acc, w) => acc + Number(w.amount || 0), 0)
 );
 
-const totalDeductions = computed(() => Math.max(0, Number(costBasis.value || 0)) + Math.max(0, Number(personalDeduction.value || 0)));
+const completedWithdrawCount = computed(() => completedWithdrawTHBItems.value.length);
+const completedDepositCount = computed(() => completedDepositTHBItems.value.length);
 
-const taxableIncome = computed(() => {
-  const gross = totalWithdrawnTHB.value + Math.max(0, Number(otherIncome.value || 0));
-  return Math.max(0, gross - totalDeductions.value);
-});
+// กำไรสุทธิจากการถอน = ยอดถอนรวม - ยอดฝากเข้าทั้งหมด - เงินต้นเพิ่มเติม
+const netCryptoProfitTHB = computed(() =>
+  Math.max(0, totalWithdrawnTHB.value - totalDepositedTHB.value - Math.max(0, Number(extraCostBasis.value || 0)))
+);
+
+// เงินได้พึงประเมินรวม (กำไรคริปโต + รายได้อื่น)
+const grossTaxableBase = computed(() => netCryptoProfitTHB.value + Math.max(0, Number(otherIncome.value || 0)));
+
+// เงินได้สุทธิหลังหักลดหย่อน
+const taxableIncome = computed(() =>
+  Math.max(0, grossTaxableBase.value - Math.max(0, Number(personalDeduction.value || 0)))
+);
+
+// เพดานรายได้ปลอดภาษีทั้งหมด (ลดหย่อน + 150,000 บาทขั้นแรก)
+const taxFreeGrossLimit = computed(() => Math.max(0, Number(personalDeduction.value || 0)) + 150000);
+
+const remainingTaxFreeQuota = computed(() => Math.max(0, taxFreeGrossLimit.value - grossTaxableBase.value));
+const remainingFilingThreshold = computed(() => Math.max(0, 60000 - grossTaxableBase.value));
+const taxQuotaUsedPct = computed(() =>
+  taxFreeGrossLimit.value > 0 ? (grossTaxableBase.value / taxFreeGrossLimit.value) * 100 : 0
+);
+
+const isEPaymentTriggered = computed(
+  () => completedWithdrawCount.value >= 3000 || (completedWithdrawCount.value >= 400 && totalWithdrawnTHB.value >= 2000000)
+);
 
 const taxResult = computed(() => {
   const steps = [
@@ -443,10 +689,22 @@ const taxResult = computed(() => {
   return { totalTax, maxRate, brackets };
 });
 
+const effectiveTaxPayable = computed(() => (taxMode.value === "thai_sec_exempt" ? 0 : taxResult.value.totalTax));
+
+const taxAlertLevel = computed<"safe" | "must_file" | "must_pay">(() => {
+  if (taxResult.value.totalTax > 0) return "must_pay";
+  if (grossTaxableBase.value > 60000) return "must_file";
+  return "safe";
+});
+
 const effectiveTaxRate = computed(() => {
-  const gross = totalWithdrawnTHB.value + Math.max(0, Number(otherIncome.value || 0));
-  if (gross <= 0) return 0;
-  return (taxResult.value.totalTax / gross) * 100;
+  if (grossTaxableBase.value <= 0) return 0;
+  return (taxResult.value.totalTax / grossTaxableBase.value) * 100;
+});
+
+const suggestedReservePct = computed(() => {
+  if (totalWithdrawnTHB.value <= 0) return 0;
+  return (taxResult.value.totalTax / totalWithdrawnTHB.value) * 100;
 });
 
 const formatMoney = (val: number) =>
@@ -464,7 +722,7 @@ const nowStr = () => formatDateTime(new Date().toISOString());
 const loadData = async () => {
   loading.value = true;
   try {
-    withdrawals.value = await fetchWithdrawals(selectedYear.value);
+    records.value = await fetchWithdrawals(selectedYear.value);
   } finally {
     loading.value = false;
   }
@@ -478,6 +736,7 @@ const clearPreview = () => {
 };
 
 const resetForm = () => {
+  form.transaction_type = "WITHDRAW";
   form.transaction_id = "";
   form.amount = 0;
   form.currency = "THB";
@@ -512,6 +771,7 @@ const openEditModal = (w: WithdrawalHistory) => {
   editingId.value = w.withdrawal_id;
   modalMode.value = "manual";
   scannedReady.value = true;
+  form.transaction_type = w.transaction_type || "WITHDRAW";
   form.transaction_id = w.transaction_id || "";
   form.amount = w.amount;
   form.currency = w.currency || "THB";
@@ -537,6 +797,7 @@ const scanFile = async (file: File) => {
 
   try {
     const res = await parseWithdrawalScreenshot(file);
+    form.transaction_type = res.transaction_type === "DEPOSIT" ? "DEPOSIT" : "WITHDRAW";
     form.transaction_id = res.transaction_id || "";
     form.amount = res.amount || 0;
     form.currency = res.currency || "THB";
@@ -575,7 +836,7 @@ const submitForm = async () => {
       Swal.fire({ icon: "success", title: "อัปเดตเรียบร้อยแล้ว", timer: 1300, showConfirmButton: false });
     } else {
       await createWithdrawal({ ...form });
-      Swal.fire({ icon: "success", title: "บันทึกประวัติการถอนแล้ว", timer: 1300, showConfirmButton: false });
+      Swal.fire({ icon: "success", title: "บันทึกรายการเรียบร้อยแล้ว", timer: 1300, showConfirmButton: false });
     }
     closeModal();
     await loadData();
@@ -587,9 +848,10 @@ const submitForm = async () => {
 };
 
 const confirmDelete = async (w: WithdrawalHistory) => {
+  const label = w.transaction_type === "DEPOSIT" ? "ฝากเงินเข้า" : "ถอนเงินออก";
   const res = await Swal.fire({
     title: "ยืนยันการลบ?",
-    text: `ต้องการลบรายการถอน ${formatMoney(w.amount)} ${w.currency} (${w.transaction_id || "ไม่ระบุรหัส"}) ใช่หรือไม่?`,
+    text: `ต้องการลบรายการ${label} ${formatMoney(w.amount)} ${w.currency} (${w.transaction_id || "ไม่ระบุรหัส"}) ใช่หรือไม่?`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonText: "ใช่, ลบเลย",
@@ -613,11 +875,13 @@ const copyTx = async (tx: string) => {
 };
 
 const exportCSV = () => {
-  const headers = ["วันที่", "จำนวนเงิน", "สกุลเงิน", "สถานะ", "วิธีการชำระเงิน", "หมายเลขธุรกรรม", "หมายเหตุ"];
-  const rows = withdrawals.value.map((w) => [
+  const headers = ["ประเภท", "วันที่", "จำนวนเงิน", "สกุลเงิน", "เทียบเท่า_USDT", "สถานะ", "วิธีการชำระเงิน", "หมายเลขธุรกรรม", "หมายเหตุ"];
+  const rows = records.value.map((w) => [
+    w.transaction_type === "DEPOSIT" ? "ฝากเข้า" : "ถอนออก",
     formatDateTime(w.withdrawal_time),
     w.amount.toFixed(2),
     w.currency,
+    (w.amount_usdt || 0).toFixed(2),
     w.status,
     w.payment_method,
     w.transaction_id,
@@ -628,7 +892,7 @@ const exportCSV = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `withdrawal_tax_${selectedYear.value || "all"}.csv`;
+  a.download = `crypto_cashflow_tax_${selectedYear.value || "all"}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 };

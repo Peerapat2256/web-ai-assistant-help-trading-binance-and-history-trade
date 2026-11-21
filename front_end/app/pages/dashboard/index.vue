@@ -36,6 +36,9 @@
           </div>
           <div class="stat-desc space-y-0.5">
             <div>ทุนเริ่มต้น {{ summary.initial_balance.toLocaleString() }} USDT</div>
+            <div v-if="(summary.total_deposited_usdt || 0) > 0" class="text-success font-medium">
+              ฝากเพิ่มเข้าพอร์ต +{{ (summary.total_deposited_usdt || 0).toLocaleString() }} USDT
+            </div>
             <div v-if="(summary.total_withdrawn_usdt || 0) > 0" class="text-warning font-medium">
               หักถอนออกแล้ว -{{ (summary.total_withdrawn_usdt || 0).toLocaleString() }} USDT
             </div>

@@ -1,6 +1,7 @@
 export interface WithdrawalHistory {
   withdrawal_id: number;
   member_id: number;
+  transaction_type?: "WITHDRAW" | "DEPOSIT";
   transaction_id: string;
   amount: number;
   currency: string;
@@ -15,6 +16,7 @@ export interface WithdrawalHistory {
 }
 
 export interface WithdrawalCreateRequest {
+  transaction_type?: "WITHDRAW" | "DEPOSIT";
   transaction_id: string;
   amount: number;
   currency: string;
@@ -28,6 +30,7 @@ export interface WithdrawalCreateRequest {
 }
 
 export interface ParsedWithdrawalData {
+  transaction_type?: "WITHDRAW" | "DEPOSIT";
   transaction_id: string;
   amount: number;
   currency: string;

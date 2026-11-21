@@ -90,20 +90,26 @@ func (s *withdrawalServiceImpl) CreateWithdrawal(ctx context.Context, memberID i
 		method = "BANK_TRANSFER"
 	}
 
+	txType := strings.ToUpper(strings.TrimSpace(req.TransactionType))
+	if txType != "DEPOSIT" {
+		txType = "WITHDRAW"
+	}
+
 	amtUSDT, exRate := resolveWithdrawalUSDT(req.Amount, currency, req.AmountUSDT, req.ExchangeRate)
 
 	w := &model.WithdrawalHistory{
-		MemberID:       memberID,
-		TransactionID:  txID,
-		Amount:         math.Abs(req.Amount),
-		Currency:       currency,
-		AmountUSDT:     amtUSDT,
-		ExchangeRate:   exRate,
-		Status:         status,
-		PaymentMethod:  method,
-		WithdrawalTime: parseTradeTime(req.WithdrawalTime),
-		Notes:          strings.TrimSpace(req.Notes),
-		ScreenshotURL:  strings.TrimSpace(req.ScreenshotURL),
+		MemberID:        memberID,
+		TransactionType: txType,
+		TransactionID:   txID,
+		Amount:          math.Abs(req.Amount),
+		Currency:        currency,
+		AmountUSDT:      amtUSDT,
+		ExchangeRate:    exRate,
+		Status:          status,
+		PaymentMethod:   method,
+		WithdrawalTime:  parseTradeTime(req.WithdrawalTime),
+		Notes:           strings.TrimSpace(req.Notes),
+		ScreenshotURL:   strings.TrimSpace(req.ScreenshotURL),
 	}
 
 	if err := s.repo.Create(ctx, w); err != nil {
@@ -118,6 +124,12 @@ func (s *withdrawalServiceImpl) UpdateWithdrawal(ctx context.Context, memberID i
 		return nil, fmt.Errorf("ไม่พบรายการถอนที่ต้องการแก้ไข")
 	}
 
+	if req.TransactionType != "" {
+		txType := strings.ToUpper(strings.TrimSpace(req.TransactionType))
+		if txType == "DEPOSIT" || txType == "WITHDRAW" {
+			w.TransactionType = txType
+		}
+	}
 	if req.TransactionID != "" {
 		w.TransactionID = strings.TrimSpace(req.TransactionID)
 	}

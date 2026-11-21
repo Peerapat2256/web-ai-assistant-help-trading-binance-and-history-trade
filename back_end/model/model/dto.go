@@ -111,11 +111,11 @@ type EquityCurvePoint struct {
 }
 
 type SymbolStat struct {
-	Symbol     string  `json:"symbol"`
-	TotalTrades int    `json:"total_trades"`
-	WinTrades  int     `json:"win_trades"`
-	WinRate    float64 `json:"win_rate"`
-	TotalPnl   float64 `json:"total_pnl"`
+	Symbol      string  `json:"symbol"`
+	TotalTrades int     `json:"total_trades"`
+	WinTrades   int     `json:"win_trades"`
+	WinRate     float64 `json:"win_rate"`
+	TotalPnl    float64 `json:"total_pnl"`
 }
 
 type SideStat struct {
@@ -144,6 +144,8 @@ type DashboardSummaryResponse struct {
 	Success            bool               `json:"success"`
 	InitialBalance     float64            `json:"initial_balance"`
 	CurrentBalance     float64            `json:"current_balance"`
+	TotalDepositedUSDT float64            `json:"total_deposited_usdt"`
+	TotalDepositedTHB  float64            `json:"total_deposited_thb"`
 	TotalWithdrawnUSDT float64            `json:"total_withdrawn_usdt"`
 	TotalWithdrawnTHB  float64            `json:"total_withdrawn_thb"`
 	NetPnl             float64            `json:"net_pnl"`
@@ -196,10 +198,10 @@ type MarketDataSummary struct {
 }
 
 type AiChartAnalyzeRequest struct {
-	Symbol       string `json:"symbol"`
-	Timeframe    string `json:"timeframe"`
-	Question     string `json:"question"`
-	TeachMode    bool   `json:"teach_mode"`
+	Symbol    string `json:"symbol"`
+	Timeframe string `json:"timeframe"`
+	Question  string `json:"question"`
+	TeachMode bool   `json:"teach_mode"`
 }
 
 type AiAnalysisResponse struct {
@@ -244,31 +246,34 @@ type SheetConfigResponse struct {
 }
 
 type WithdrawalCreateRequest struct {
-	TransactionID  string  `json:"transaction_id"`
-	Amount         float64 `json:"amount" binding:"required"`
-	Currency       string  `json:"currency"`
-	AmountUSDT     float64 `json:"amount_usdt"`
-	ExchangeRate   float64 `json:"exchange_rate"`
-	Status         string  `json:"status"`
-	PaymentMethod  string  `json:"payment_method"`
-	WithdrawalTime string  `json:"withdrawal_time"`
-	Notes          string  `json:"notes"`
-	ScreenshotURL  string  `json:"screenshot_url"`
+	TransactionType string  `json:"transaction_type"`
+	TransactionID   string  `json:"transaction_id"`
+	Amount          float64 `json:"amount" binding:"required"`
+	Currency        string  `json:"currency"`
+	AmountUSDT      float64 `json:"amount_usdt"`
+	ExchangeRate    float64 `json:"exchange_rate"`
+	Status          string  `json:"status"`
+	PaymentMethod   string  `json:"payment_method"`
+	WithdrawalTime  string  `json:"withdrawal_time"`
+	Notes           string  `json:"notes"`
+	ScreenshotURL   string  `json:"screenshot_url"`
 }
 
 type WithdrawalUpdateRequest struct {
-	TransactionID  string  `json:"transaction_id"`
-	Amount         float64 `json:"amount"`
-	Currency       string  `json:"currency"`
-	AmountUSDT     float64 `json:"amount_usdt"`
-	ExchangeRate   float64 `json:"exchange_rate"`
-	Status         string  `json:"status"`
-	PaymentMethod  string  `json:"payment_method"`
-	WithdrawalTime string  `json:"withdrawal_time"`
-	Notes          string  `json:"notes"`
+	TransactionType string  `json:"transaction_type"`
+	TransactionID   string  `json:"transaction_id"`
+	Amount          float64 `json:"amount"`
+	Currency        string  `json:"currency"`
+	AmountUSDT      float64 `json:"amount_usdt"`
+	ExchangeRate    float64 `json:"exchange_rate"`
+	Status          string  `json:"status"`
+	PaymentMethod   string  `json:"payment_method"`
+	WithdrawalTime  string  `json:"withdrawal_time"`
+	Notes           string  `json:"notes"`
 }
 
 type ParsedWithdrawalData struct {
+	TransactionType string  `json:"transaction_type"`
 	TransactionID   string  `json:"transaction_id"`
 	Amount          float64 `json:"amount"`
 	Currency        string  `json:"currency"`

@@ -225,34 +225,45 @@ func (s *dashboardServiceImpl) GetSummary(ctx context.Context, memberID int32) (
 		recent = append(recent, trades[i])
 	}
 
-	// คำนวณยอดถอนเงินทั้งหมด (เฉพาะรายการสำเร็จ) เพื่อหักออกจากยอดพอร์ตปัจจุบัน
+	// คำนวณยอดฝากเพิ่มและยอดถอนออกทั้งหมด (เฉพาะรายการสำเร็จ) เพื่ออัปเดตยอดพอร์ตปัจจุบันให้ตรงจริง
+	totalDepositedUSDT := 0.0
+	totalDepositedTHB := 0.0
 	totalWithdrawnUSDT := 0.0
 	totalWithdrawnTHB := 0.0
 	if s.withdrawalRepo != nil {
-		if withdrawals, wErr := s.withdrawalRepo.ListByMember(ctx, memberID, 0); wErr == nil {
+		if items, wErr := s.withdrawalRepo.ListByMember(ctx, memberID, 0); wErr == nil {
 			liveRate := 0.0
-			for _, w := range withdrawals {
+			for _, w := range items {
 				if w.Status != "สำเร็จ" && w.Status != "Completed" {
 					continue
 				}
-				if w.Currency == "THB" {
-					totalWithdrawnTHB += w.Amount
-				}
-				if w.AmountUSDT > 0 {
-					totalWithdrawnUSDT += w.AmountUSDT
-				} else if w.Currency == "USDT" || w.Currency == "USD" {
-					totalWithdrawnUSDT += w.Amount
-				} else if w.Currency == "THB" {
-					if liveRate <= 0 {
-						liveRate = utils.GetUSDTTHBRate()
+				usdtVal := w.AmountUSDT
+				if usdtVal <= 0 {
+					if w.Currency == "USDT" || w.Currency == "USD" {
+						usdtVal = w.Amount
+					} else if w.Currency == "THB" {
+						if liveRate <= 0 {
+							liveRate = utils.GetUSDTTHBRate()
+						}
+						usdtVal = w.Amount / liveRate
 					}
-					totalWithdrawnUSDT += w.Amount / liveRate
+				}
+				if w.TransactionType == "DEPOSIT" {
+					totalDepositedUSDT += usdtVal
+					if w.Currency == "THB" {
+						totalDepositedTHB += w.Amount
+					}
+				} else {
+					totalWithdrawnUSDT += usdtVal
+					if w.Currency == "THB" {
+						totalWithdrawnTHB += w.Amount
+					}
 				}
 			}
 		}
 	}
 
-	currentBalance := initialBalance + netPnl - totalWithdrawnUSDT
+	currentBalance := initialBalance + totalDepositedUSDT + netPnl - totalWithdrawnUSDT
 	netPnlPct := 0.0
 	if initialBalance > 0 {
 		netPnlPct = math.Round((netPnl/initialBalance)*10000) / 100
@@ -264,6 +275,8 @@ func (s *dashboardServiceImpl) GetSummary(ctx context.Context, memberID int32) (
 		Success:            true,
 		InitialBalance:     initialBalance,
 		CurrentBalance:     math.Round(currentBalance*100) / 100,
+		TotalDepositedUSDT: math.Round(totalDepositedUSDT*100) / 100,
+		TotalDepositedTHB:  math.Round(totalDepositedTHB*100) / 100,
 		TotalWithdrawnUSDT: math.Round(totalWithdrawnUSDT*100) / 100,
 		TotalWithdrawnTHB:  math.Round(totalWithdrawnTHB*100) / 100,
 		NetPnl:             math.Round(netPnl*100) / 100,

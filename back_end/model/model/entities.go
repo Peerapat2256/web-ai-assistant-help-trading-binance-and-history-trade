@@ -94,9 +94,10 @@ func (SheetConfig) TableName() string {
 }
 
 type WithdrawalHistory struct {
-	WithdrawalID   int32     `gorm:"column:withdrawal_id;primaryKey;autoIncrement" json:"withdrawal_id"`
-	MemberID       int32     `gorm:"column:member_id;index:idx_withdrawal_member;not null" json:"member_id"`
-	TransactionID  string    `gorm:"column:transaction_id;type:varchar(120);index:idx_withdrawal_tx;default:''" json:"transaction_id"`
+	WithdrawalID    int32     `gorm:"column:withdrawal_id;primaryKey;autoIncrement" json:"withdrawal_id"`
+	MemberID        int32     `gorm:"column:member_id;index:idx_withdrawal_member;not null" json:"member_id"`
+	TransactionType string    `gorm:"column:transaction_type;type:varchar(20);default:'WITHDRAW'" json:"transaction_type"`
+	TransactionID   string    `gorm:"column:transaction_id;type:varchar(120);index:idx_withdrawal_tx;default:''" json:"transaction_id"`
 	Amount         float64   `gorm:"column:amount;type:decimal(18,2);not null" json:"amount"`
 	Currency       string    `gorm:"column:currency;type:varchar(20);default:'THB'" json:"currency"`
 	AmountUSDT     float64   `gorm:"column:amount_usdt;type:decimal(18,4);default:0" json:"amount_usdt"`

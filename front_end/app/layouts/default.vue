@@ -161,7 +161,7 @@ const sheetState = useState<SheetConfig | null>("user-sheet-config", () => null)
 const navItems = [
   { to: "/dashboard", label: "แดชบอร์ดภาพรวม", icon: LayoutDashboard },
   { to: "/trades", label: "ประวัติเทรด & สแกนรูป", icon: History },
-  { to: "/withdrawals", label: "ประวัติการถอน & ภาษี", icon: Wallet },
+  { to: "/withdrawals", label: "ฝาก-ถอน & คำนวณภาษี", icon: Wallet },
   { to: "/ai-coach", label: "AI โค้ช & วิเคราะห์กราฟ", icon: Bot },
   { to: "/news", label: "ข่าวคริปโต & วิเคราะห์", icon: Newspaper },
   { to: "/calculator", label: "คำนวณความเสี่ยง", icon: Calculator },
