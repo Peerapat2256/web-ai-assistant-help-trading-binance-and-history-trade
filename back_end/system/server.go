@@ -68,10 +68,19 @@ func StartServer() {
 	controller.SheetController(router)
 	controller.WithdrawalController(router)
 
-	// รองรับทั้ง Localhost (SERVER_PORT) และ Cloud / Render (PORT)
-	port := os.Getenv("SERVER_PORT")
-	if port == "" {
+	// บน Render (RENDER=true) ต้องใช้ PORT ที่ Render กำหนดเสมอ (เช่น 10000)
+	// ส่วนบนเครื่อง Local ใช้ SERVER_PORT (8080) ก่อน เพื่อไม่ให้ชนกับตัวแปร PORT อื่น
+	var port string
+	if os.Getenv("RENDER") != "" {
 		port = os.Getenv("PORT")
+		if port == "" {
+			port = os.Getenv("SERVER_PORT")
+		}
+	} else {
+		port = os.Getenv("SERVER_PORT")
+		if port == "" {
+			port = os.Getenv("PORT")
+		}
 	}
 	if port == "" {
 		port = "8080"

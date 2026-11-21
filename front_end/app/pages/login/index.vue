@@ -60,11 +60,17 @@ import { useLogin } from "~/composables/api/useLogin";
 
 definePageMeta({ layout: "blank" });
 
+const { $api } = useNuxtApp();
 const { login, errorMessage } = useLogin();
 const loading = ref(false);
 const form = reactive({
   email: "",
   password: "",
+});
+
+onMounted(() => {
+  // แอบยิง /ping ปลุกเซิร์ฟเวอร์ Render ไว้ล่วงหน้าตั้งแต่เปิดหน้า Login
+  $api.get("/ping").catch(() => {});
 });
 
 const handleLogin = async () => {

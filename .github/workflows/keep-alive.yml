@@ -1,0 +1,20 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # ยิงปลุกเซิร์ฟเวอร์ Render ทุกๆ 10 นาที (ป้องกัน Render Free สลีปหลังไม่ใช้งาน 15 นาที)
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render /ping endpoint
+        env:
+          RENDER_URL: ${{ secrets.RENDER_BACKEND_URL }}
+        run: |
+          TARGET="${RENDER_URL:-https://web-ai-assistant-help-trading-binance-and-history-trade.onrender.com}"
+          TARGET="${TARGET%/}/ping"
+          echo "Pinging $TARGET ..."
+          curl -fsS --max-time 45 "$TARGET" || echo "Wake-up request sent (server may be booting)"
