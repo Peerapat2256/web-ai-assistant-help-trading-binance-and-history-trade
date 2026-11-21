@@ -4,6 +4,8 @@ export interface WithdrawalHistory {
   transaction_id: string;
   amount: number;
   currency: string;
+  amount_usdt?: number;
+  exchange_rate?: number;
   status: string;
   payment_method: string;
   withdrawal_time: string;
@@ -16,6 +18,8 @@ export interface WithdrawalCreateRequest {
   transaction_id: string;
   amount: number;
   currency: string;
+  amount_usdt?: number;
+  exchange_rate?: number;
   status: string;
   payment_method: string;
   withdrawal_time: string;

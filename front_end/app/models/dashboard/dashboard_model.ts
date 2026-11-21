@@ -41,6 +41,8 @@ export interface DashboardSummary {
   success: boolean;
   initial_balance: number;
   current_balance: number;
+  total_withdrawn_usdt?: number;
+  total_withdrawn_thb?: number;
   net_pnl: number;
   net_pnl_pct: number;
   today_pnl: number;

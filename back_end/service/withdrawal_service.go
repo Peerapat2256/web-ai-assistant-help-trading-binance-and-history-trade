@@ -3,6 +3,7 @@ package service
 import (
 	"backend/model/model"
 	"backend/repository"
+	"backend/utils"
 	"context"
 	"fmt"
 	"math"
@@ -48,6 +49,26 @@ func (s *withdrawalServiceImpl) AnnotateWithdrawalDuplicate(ctx context.Context,
 	}
 }
 
+func resolveWithdrawalUSDT(amount float64, currency string, reqUSDT float64, reqRate float64) (float64, float64) {
+	amt := math.Abs(amount)
+	if currency == "USDT" || currency == "USD" {
+		return math.Round(amt*100) / 100, 1.0
+	}
+	if reqUSDT > 0 {
+		rate := reqRate
+		if rate <= 0 {
+			rate = math.Round((amt/reqUSDT)*10000) / 10000
+		}
+		return math.Round(reqUSDT*100) / 100, rate
+	}
+	rate := reqRate
+	if rate <= 0 {
+		rate = utils.GetUSDTTHBRate()
+	}
+	usdt := math.Round((amt/rate)*100) / 100
+	return usdt, math.Round(rate*10000) / 10000
+}
+
 func (s *withdrawalServiceImpl) CreateWithdrawal(ctx context.Context, memberID int32, req model.WithdrawalCreateRequest) (*model.WithdrawalHistory, error) {
 	txID := strings.TrimSpace(req.TransactionID)
 	if txID != "" {
@@ -69,11 +90,15 @@ func (s *withdrawalServiceImpl) CreateWithdrawal(ctx context.Context, memberID i
 		method = "BANK_TRANSFER"
 	}
 
+	amtUSDT, exRate := resolveWithdrawalUSDT(req.Amount, currency, req.AmountUSDT, req.ExchangeRate)
+
 	w := &model.WithdrawalHistory{
 		MemberID:       memberID,
 		TransactionID:  txID,
 		Amount:         math.Abs(req.Amount),
 		Currency:       currency,
+		AmountUSDT:     amtUSDT,
+		ExchangeRate:   exRate,
 		Status:         status,
 		PaymentMethod:  method,
 		WithdrawalTime: parseTradeTime(req.WithdrawalTime),
@@ -112,6 +137,10 @@ func (s *withdrawalServiceImpl) UpdateWithdrawal(ctx context.Context, memberID i
 		w.WithdrawalTime = parseTradeTime(req.WithdrawalTime)
 	}
 	w.Notes = strings.TrimSpace(req.Notes)
+
+	amtUSDT, exRate := resolveWithdrawalUSDT(w.Amount, w.Currency, req.AmountUSDT, req.ExchangeRate)
+	w.AmountUSDT = amtUSDT
+	w.ExchangeRate = exRate
 
 	if err := s.repo.Update(ctx, w); err != nil {
 		return nil, err

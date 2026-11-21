@@ -34,8 +34,11 @@
           <div class="stat-value text-2xl text-primary">
             {{ summary.current_balance.toLocaleString() }} <span class="text-sm font-normal opacity-60">USDT</span>
           </div>
-          <div class="stat-desc">
-            ทุนเริ่มต้น {{ summary.initial_balance.toLocaleString() }} USDT
+          <div class="stat-desc space-y-0.5">
+            <div>ทุนเริ่มต้น {{ summary.initial_balance.toLocaleString() }} USDT</div>
+            <div v-if="(summary.total_withdrawn_usdt || 0) > 0" class="text-warning font-medium">
+              หักถอนออกแล้ว -{{ (summary.total_withdrawn_usdt || 0).toLocaleString() }} USDT
+            </div>
           </div>
         </div>
 

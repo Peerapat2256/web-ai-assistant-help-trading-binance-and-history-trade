@@ -141,10 +141,12 @@ type PnlCalendarDay struct {
 }
 
 type DashboardSummaryResponse struct {
-	Success           bool               `json:"success"`
-	InitialBalance    float64            `json:"initial_balance"`
-	CurrentBalance    float64            `json:"current_balance"`
-	NetPnl            float64            `json:"net_pnl"`
+	Success            bool               `json:"success"`
+	InitialBalance     float64            `json:"initial_balance"`
+	CurrentBalance     float64            `json:"current_balance"`
+	TotalWithdrawnUSDT float64            `json:"total_withdrawn_usdt"`
+	TotalWithdrawnTHB  float64            `json:"total_withdrawn_thb"`
+	NetPnl             float64            `json:"net_pnl"`
 	NetPnlPct         float64            `json:"net_pnl_pct"`
 	TodayPnl          float64            `json:"today_pnl"`
 	MaxDailyLossUSD   float64            `json:"max_daily_loss_usd"`
@@ -245,6 +247,8 @@ type WithdrawalCreateRequest struct {
 	TransactionID  string  `json:"transaction_id"`
 	Amount         float64 `json:"amount" binding:"required"`
 	Currency       string  `json:"currency"`
+	AmountUSDT     float64 `json:"amount_usdt"`
+	ExchangeRate   float64 `json:"exchange_rate"`
 	Status         string  `json:"status"`
 	PaymentMethod  string  `json:"payment_method"`
 	WithdrawalTime string  `json:"withdrawal_time"`
@@ -256,6 +260,8 @@ type WithdrawalUpdateRequest struct {
 	TransactionID  string  `json:"transaction_id"`
 	Amount         float64 `json:"amount"`
 	Currency       string  `json:"currency"`
+	AmountUSDT     float64 `json:"amount_usdt"`
+	ExchangeRate   float64 `json:"exchange_rate"`
 	Status         string  `json:"status"`
 	PaymentMethod  string  `json:"payment_method"`
 	WithdrawalTime string  `json:"withdrawal_time"`

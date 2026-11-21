@@ -165,8 +165,11 @@
           <tbody>
             <tr v-for="w in withdrawals" :key="w.withdrawal_id" class="hover">
               <td class="font-mono text-xs whitespace-nowrap">{{ formatDateTime(w.withdrawal_time) }}</td>
-              <td class="text-right font-mono font-bold text-sm text-primary whitespace-nowrap">
-                -{{ formatMoney(w.amount) }} {{ w.currency }}
+              <td class="text-right font-mono whitespace-nowrap">
+                <div class="font-bold text-sm text-primary">-{{ formatMoney(w.amount) }} {{ w.currency }}</div>
+                <div v-if="w.amount_usdt && w.currency !== 'USDT'" class="text-[11px] opacity-60">
+                  หักพอร์ต -{{ formatMoney(w.amount_usdt) }} USDT
+                </div>
               </td>
               <td>
                 <span
@@ -281,6 +284,11 @@
             </label>
           </div>
 
+          <label v-if="form.currency === 'THB'" class="form-control">
+            <span class="label-text text-xs mb-1">ยอดหักพอร์ต (USDT) — เว้นว่างหรือใส่ 0 เพื่อให้ระบบแปลงจากเรทสด USDT/THB อัตโนมัติ</span>
+            <input v-model.number="form.amount_usdt" type="number" step="any" min="0" placeholder="แปลงอัตโนมัติตามเรท Binance USDT/THB" class="input input-bordered input-sm font-mono" />
+          </label>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="form-control">
               <span class="label-text text-xs mb-1">วันที่และเวลา</span>
@@ -372,6 +380,7 @@ const form = reactive<WithdrawalCreateRequest>({
   transaction_id: "",
   amount: 0,
   currency: "THB",
+  amount_usdt: 0,
   status: "สำเร็จ",
   payment_method: "BANK_TRANSFER",
   withdrawal_time: "",
@@ -472,6 +481,7 @@ const resetForm = () => {
   form.transaction_id = "";
   form.amount = 0;
   form.currency = "THB";
+  form.amount_usdt = 0;
   form.status = "สำเร็จ";
   form.payment_method = "BANK_TRANSFER";
   form.withdrawal_time = nowStr();
@@ -505,6 +515,7 @@ const openEditModal = (w: WithdrawalHistory) => {
   form.transaction_id = w.transaction_id || "";
   form.amount = w.amount;
   form.currency = w.currency || "THB";
+  form.amount_usdt = w.amount_usdt || 0;
   form.status = w.status || "สำเร็จ";
   form.payment_method = w.payment_method || "BANK_TRANSFER";
   form.withdrawal_time = formatDateTime(w.withdrawal_time);

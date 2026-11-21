@@ -24,7 +24,11 @@ func getDashboardSummary(c *gin.Context) {
 	if !ok {
 		return
 	}
-	svc := service.NewDashboardService(repository.NewDashboardRepository(), repository.NewPortfolioRepository())
+	svc := service.NewDashboardService(
+		repository.NewDashboardRepository(),
+		repository.NewPortfolioRepository(),
+		repository.NewWithdrawalRepository(),
+	)
 	summary, err := svc.GetSummary(context.Background(), memberID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "โหลดข้อมูลแดชบอร์ดไม่สำเร็จ"})
@@ -48,7 +52,11 @@ func getDashboardCalendar(c *gin.Context) {
 		month = int(now.Month())
 	}
 
-	svc := service.NewDashboardService(repository.NewDashboardRepository(), repository.NewPortfolioRepository())
+	svc := service.NewDashboardService(
+		repository.NewDashboardRepository(),
+		repository.NewPortfolioRepository(),
+		repository.NewWithdrawalRepository(),
+	)
 	days, err := svc.GetCalendar(context.Background(), memberID, year, month)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "โหลดปฏิทินกำไรขาดทุนไม่สำเร็จ"})

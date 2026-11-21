@@ -3,6 +3,7 @@ package service
 import (
 	"backend/model/model"
 	"backend/repository"
+	"backend/utils"
 	"context"
 	"math"
 	"sort"
@@ -15,14 +16,16 @@ type DashboardService interface {
 }
 
 type dashboardServiceImpl struct {
-	dashRepo      repository.DashboardRepository
-	portfolioRepo repository.PortfolioRepository
+	dashRepo       repository.DashboardRepository
+	portfolioRepo  repository.PortfolioRepository
+	withdrawalRepo repository.WithdrawalRepository
 }
 
-func NewDashboardService(dashRepo repository.DashboardRepository, portfolioRepo repository.PortfolioRepository) DashboardService {
+func NewDashboardService(dashRepo repository.DashboardRepository, portfolioRepo repository.PortfolioRepository, withdrawalRepo repository.WithdrawalRepository) DashboardService {
 	return &dashboardServiceImpl{
-		dashRepo:      dashRepo,
-		portfolioRepo: portfolioRepo,
+		dashRepo:       dashRepo,
+		portfolioRepo:  portfolioRepo,
+		withdrawalRepo: withdrawalRepo,
 	}
 }
 
@@ -222,7 +225,34 @@ func (s *dashboardServiceImpl) GetSummary(ctx context.Context, memberID int32) (
 		recent = append(recent, trades[i])
 	}
 
-	currentBalance := initialBalance + netPnl
+	// คำนวณยอดถอนเงินทั้งหมด (เฉพาะรายการสำเร็จ) เพื่อหักออกจากยอดพอร์ตปัจจุบัน
+	totalWithdrawnUSDT := 0.0
+	totalWithdrawnTHB := 0.0
+	if s.withdrawalRepo != nil {
+		if withdrawals, wErr := s.withdrawalRepo.ListByMember(ctx, memberID, 0); wErr == nil {
+			liveRate := 0.0
+			for _, w := range withdrawals {
+				if w.Status != "สำเร็จ" && w.Status != "Completed" {
+					continue
+				}
+				if w.Currency == "THB" {
+					totalWithdrawnTHB += w.Amount
+				}
+				if w.AmountUSDT > 0 {
+					totalWithdrawnUSDT += w.AmountUSDT
+				} else if w.Currency == "USDT" || w.Currency == "USD" {
+					totalWithdrawnUSDT += w.Amount
+				} else if w.Currency == "THB" {
+					if liveRate <= 0 {
+						liveRate = utils.GetUSDTTHBRate()
+					}
+					totalWithdrawnUSDT += w.Amount / liveRate
+				}
+			}
+		}
+	}
+
+	currentBalance := initialBalance + netPnl - totalWithdrawnUSDT
 	netPnlPct := 0.0
 	if initialBalance > 0 {
 		netPnlPct = math.Round((netPnl/initialBalance)*10000) / 100
@@ -231,10 +261,12 @@ func (s *dashboardServiceImpl) GetSummary(ctx context.Context, memberID int32) (
 	isAlert := maxDailyLoss > 0 && todayPnl <= -maxDailyLoss
 
 	return &model.DashboardSummaryResponse{
-		Success:          true,
-		InitialBalance:   initialBalance,
-		CurrentBalance:   math.Round(currentBalance*100) / 100,
-		NetPnl:           math.Round(netPnl*100) / 100,
+		Success:            true,
+		InitialBalance:     initialBalance,
+		CurrentBalance:     math.Round(currentBalance*100) / 100,
+		TotalWithdrawnUSDT: math.Round(totalWithdrawnUSDT*100) / 100,
+		TotalWithdrawnTHB:  math.Round(totalWithdrawnTHB*100) / 100,
+		NetPnl:             math.Round(netPnl*100) / 100,
 		NetPnlPct:        netPnlPct,
 		TodayPnl:         math.Round(todayPnl*100) / 100,
 		MaxDailyLossUSD:  maxDailyLoss,

@@ -99,6 +99,8 @@ type WithdrawalHistory struct {
 	TransactionID  string    `gorm:"column:transaction_id;type:varchar(120);index:idx_withdrawal_tx;default:''" json:"transaction_id"`
 	Amount         float64   `gorm:"column:amount;type:decimal(18,2);not null" json:"amount"`
 	Currency       string    `gorm:"column:currency;type:varchar(20);default:'THB'" json:"currency"`
+	AmountUSDT     float64   `gorm:"column:amount_usdt;type:decimal(18,4);default:0" json:"amount_usdt"`
+	ExchangeRate   float64   `gorm:"column:exchange_rate;type:decimal(10,4);default:0" json:"exchange_rate"`
 	Status         string    `gorm:"column:status;type:varchar(30);default:'สำเร็จ'" json:"status"`
 	PaymentMethod  string    `gorm:"column:payment_method;type:varchar(60);default:'BANK_TRANSFER'" json:"payment_method"`
 	WithdrawalTime time.Time `gorm:"column:withdrawal_time;index:idx_withdrawal_time;not null" json:"withdrawal_time"`

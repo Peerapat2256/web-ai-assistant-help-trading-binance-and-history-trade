@@ -24,7 +24,11 @@ func AiController(router *gin.Engine) {
 }
 
 func newAiCoachService() service.AiCoachService {
-	dashSvc := service.NewDashboardService(repository.NewDashboardRepository(), repository.NewPortfolioRepository())
+	dashSvc := service.NewDashboardService(
+		repository.NewDashboardRepository(),
+		repository.NewPortfolioRepository(),
+		repository.NewWithdrawalRepository(),
+	)
 	return service.NewAiCoachService(repository.NewAiLogRepository(), dashSvc, repository.NewTradeRepository())
 }
 
