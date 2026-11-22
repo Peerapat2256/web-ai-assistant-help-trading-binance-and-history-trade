@@ -68,6 +68,7 @@ func (s *tradeServiceImpl) CreateTrade(ctx context.Context, memberID int32, req 
 
 	trade := &model.TradeHistory{
 		TradeCode:       generateTradeCode(),
+		ExternalOrderID: strings.TrimSpace(req.ExternalOrderID),
 		MemberID:        memberID,
 		Symbol:          utils.NormalizeBinanceSymbol(req.Symbol),
 		PositionSide:    strings.ToUpper(strings.TrimSpace(req.PositionSide)),

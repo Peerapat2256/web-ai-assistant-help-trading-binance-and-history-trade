@@ -29,7 +29,8 @@ type PortfolioUpdateRequest struct {
 }
 
 type TradeCreateRequest struct {
-	Symbol        string  `json:"symbol" binding:"required"`
+	ExternalOrderID string  `json:"external_order_id"`
+	Symbol          string  `json:"symbol" binding:"required"`
 	PositionSide  string  `json:"position_side" binding:"required"`
 	Leverage      int32   `json:"leverage"`
 	EntryPrice    float64 `json:"entry_price"`
@@ -286,4 +287,24 @@ type ParsedWithdrawalData struct {
 	RawSummary      string  `json:"raw_summary"`
 	IsDuplicate     bool    `json:"is_duplicate"`
 	DuplicateReason string  `json:"duplicate_reason,omitempty"`
+}
+
+type BinanceConfigRequest struct {
+	APIKey     string `json:"api_key"`
+	APISecret  string `json:"api_secret"`
+	IsAutoSync bool   `json:"is_auto_sync"`
+}
+
+type BinanceConfigResponse struct {
+	Connected     bool       `json:"connected"`
+	APIKeyMasked  string     `json:"api_key_masked"`
+	IsAutoSync    bool       `json:"is_auto_sync"`
+	LastSyncedAt  *time.Time `json:"last_synced_at"`
+	LastSyncError string     `json:"last_sync_error"`
+}
+
+type BinanceSyncResult struct {
+	FetchedCount int `json:"fetched_count"`
+	CreatedCount int `json:"created_count"`
+	SkippedCount int `json:"skipped_count"`
 }

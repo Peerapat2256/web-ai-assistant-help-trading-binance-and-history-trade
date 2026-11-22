@@ -16,6 +16,15 @@
           <ExternalLink class="w-4 h-4" />
           เปิด Google Sheet
         </a>
+        <button
+          class="btn btn-outline btn-info btn-sm gap-1.5"
+          :disabled="syncingBinance"
+          @click="handleQuickBinanceSync"
+          title="ดึงออเดอร์ที่ปิดแล้วจาก Binance Futures อัตโนมัติ"
+        >
+          <RefreshCw :class="['w-4 h-4', syncingBinance ? 'animate-spin' : '']" />
+          {{ syncingBinance ? 'กำลังซิงค์ Binance...' : 'ซิงค์จาก Binance' }}
+        </button>
         <button class="btn btn-primary btn-sm gap-2" @click="openScanModal = true">
           <Sparkles class="w-4 h-4" />
           อัปโหลดรูปแคปจอ Binance
@@ -59,6 +68,15 @@
 
       <div v-else-if="tradeStore.trades.length === 0" class="p-12 text-center space-y-3">
         <p class="text-sm opacity-60">ยังไม่มีรายการบันทึกการเทรดในระบบ</p>
+        <button
+          class="btn btn-outline btn-info btn-sm gap-1.5"
+          :disabled="syncingBinance"
+          @click="handleQuickBinanceSync"
+          title="ดึงออเดอร์ที่ปิดแล้วจาก Binance Futures อัตโนมัติ"
+        >
+          <RefreshCw :class="['w-4 h-4', syncingBinance ? 'animate-spin' : '']" />
+          {{ syncingBinance ? 'กำลังซิงค์ Binance...' : 'ซิงค์จาก Binance' }}
+        </button>
         <button class="btn btn-primary btn-sm gap-2" @click="openScanModal = true">
           <Sparkles class="w-4 h-4" />
           เริ่มอัปโหลดรูปแคปจอแรกของคุณ
@@ -160,9 +178,10 @@
 </template>
 
 <script setup lang="ts">
-import { Sparkles, Plus, Search, Pencil, Trash2, ExternalLink } from "lucide-vue-next";
+import { Sparkles, Plus, Search, Pencil, Trash2, ExternalLink, RefreshCw } from "lucide-vue-next";
 import Swal from "sweetalert2";
 import { useTrades } from "~/composables/api/useTrades";
+import { useBinanceSync } from "~/composables/api/useBinanceSync";
 import { useTradeStore } from "~/stores/trade_store";
 import type { TradeHistory } from "~/models/trade/response/trade_res";
 import type { SheetConfig } from "~/models/sheet/sheet_model";
@@ -172,7 +191,9 @@ definePageMeta({ middleware: "auth" });
 const sheetState = useState<SheetConfig | null>("user-sheet-config", () => null);
 const tradeStore = useTradeStore();
 const { fetchTrades, deleteTrade } = useTrades();
+const { syncBinanceTrades } = useBinanceSync();
 
+const syncingBinance = ref(false);
 const filterSymbol = ref("");
 const filterSide = ref("ALL");
 const openScanModal = ref(false);
@@ -187,6 +208,30 @@ const closeScanModal = () => {
 
 const loadTrades = async () => {
   await fetchTrades(filterSymbol.value, filterSide.value);
+};
+
+const handleQuickBinanceSync = async () => {
+  syncingBinance.value = true;
+  try {
+    const res = await syncBinanceTrades(7);
+    Swal.fire({ icon: "success", title: "ซิงค์จาก Binance สำเร็จ", text: res.message, timer: 2200, showConfirmButton: false });
+    await loadTrades();
+  } catch (err: any) {
+    const msg = err.response?.data?.message || "ยังไม่ได้เชื่อมต่อ Binance API";
+    const result = await Swal.fire({
+      icon: "info",
+      title: "ไม่สามารถซิงค์ Binance ได้",
+      text: msg,
+      showCancelButton: true,
+      confirmButtonText: "ไปหน้าตั้งค่า Binance API",
+      cancelButtonText: "ปิด",
+    });
+    if (result.isConfirmed) {
+      navigateTo("/settings");
+    }
+  } finally {
+    syncingBinance.value = false;
+  }
 };
 
 const openManualCreate = () => {

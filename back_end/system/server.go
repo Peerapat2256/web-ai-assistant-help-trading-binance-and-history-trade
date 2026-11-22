@@ -67,6 +67,7 @@ func StartServer() {
 	controller.NewsController(router)
 	controller.SheetController(router)
 	controller.WithdrawalController(router)
+	controller.BinanceController(router)
 
 	// บน Render (RENDER=true) ต้องใช้ PORT ที่ Render กำหนดเสมอ (เช่น 10000)
 	// ส่วนบนเครื่อง Local ใช้ SERVER_PORT (8080) ก่อน เพื่อไม่ให้ชนกับตัวแปร PORT อื่น

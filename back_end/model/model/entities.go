@@ -36,6 +36,7 @@ func (PortfolioSetting) TableName() string {
 type TradeHistory struct {
 	TradeID         int32     `gorm:"column:trade_id;primaryKey;autoIncrement" json:"trade_id"`
 	TradeCode       string    `gorm:"column:trade_code;type:varchar(50);uniqueIndex;not null" json:"trade_code"`
+	ExternalOrderID string    `gorm:"column:external_order_id;type:varchar(100);index:idx_trade_ext_order;default:''" json:"external_order_id"`
 	MemberID        int32     `gorm:"column:member_id;index:idx_trade_member;not null" json:"member_id"`
 	Symbol          string    `gorm:"column:symbol;type:varchar(30);index:idx_trade_symbol;not null" json:"symbol"`
 	PositionSide    string    `gorm:"column:position_side;type:varchar(10);not null" json:"position_side"`
@@ -113,4 +114,21 @@ type WithdrawalHistory struct {
 
 func (WithdrawalHistory) TableName() string {
 	return "withdrawal_history"
+}
+
+type BinanceConfig struct {
+	ID            int32      `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	MemberID      int32      `gorm:"column:member_id;uniqueIndex;not null" json:"member_id"`
+	APIKeyEnc     string     `gorm:"column:api_key_enc;type:text;not null" json:"-"`
+	APISecretEnc  string     `gorm:"column:api_secret_enc;type:text;not null" json:"-"`
+	APIKeyMasked  string     `gorm:"column:api_key_masked;type:varchar(60);default:''" json:"api_key_masked"`
+	IsAutoSync    bool       `gorm:"column:is_auto_sync;default:true" json:"is_auto_sync"`
+	LastSyncedAt  *time.Time `gorm:"column:last_synced_at" json:"last_synced_at"`
+	LastSyncError string     `gorm:"column:last_sync_error;type:text" json:"last_sync_error"`
+	CreatedAt     time.Time  `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	UpdatedAt     time.Time  `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
+}
+
+func (BinanceConfig) TableName() string {
+	return "binance_config"
 }

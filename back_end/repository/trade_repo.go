@@ -11,6 +11,7 @@ type TradeRepository interface {
 	Create(ctx context.Context, trade *model.TradeHistory) error
 	GetByID(ctx context.Context, tradeID int32, memberID int32) (*model.TradeHistory, error)
 	ListByMember(ctx context.Context, memberID int32, symbol string, side string) ([]model.TradeHistory, error)
+	FindByExternalOrderID(ctx context.Context, memberID int32, extOrderID string) (*model.TradeHistory, error)
 	FindPotentialDuplicate(ctx context.Context, memberID int32, symbol string, side string, entryPrice float64, exitPrice float64, pnl float64, tradeTime time.Time) (*model.TradeHistory, error)
 	Update(ctx context.Context, trade *model.TradeHistory) error
 	UpdateSyncStatus(ctx context.Context, tradeID int32, status string) error
@@ -68,6 +69,20 @@ func (r *tradeRepository) FindPendingSync(ctx context.Context, limit int) ([]mod
 	var trades []model.TradeHistory
 	err := query.DB().WithContext(ctx).Where("sync_sheet_status IN ?", []string{"Pending", "Failed"}).Limit(limit).Find(&trades).Error
 	return trades, err
+}
+
+func (r *tradeRepository) FindByExternalOrderID(ctx context.Context, memberID int32, extOrderID string) (*model.TradeHistory, error) {
+	if extOrderID == "" {
+		return nil, nil
+	}
+	var trade model.TradeHistory
+	err := query.DB().WithContext(ctx).
+		Where("member_id = ? AND external_order_id = ?", memberID, extOrderID).
+		First(&trade).Error
+	if err != nil {
+		return nil, err
+	}
+	return &trade, nil
 }
 
 func (r *tradeRepository) FindPotentialDuplicate(ctx context.Context, memberID int32, symbol string, side string, entryPrice float64, exitPrice float64, pnl float64, tradeTime time.Time) (*model.TradeHistory, error) {

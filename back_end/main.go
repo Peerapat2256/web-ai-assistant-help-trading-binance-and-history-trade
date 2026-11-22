@@ -14,5 +14,6 @@ func main() {
 	}
 	query.SetDefault(db)
 	worker.StartSheetRetryWorker()
+	worker.StartBinanceAutoSyncWorker()
 	system.StartServer()
 }
